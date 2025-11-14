@@ -12,7 +12,7 @@ def initialize_llm():
     """Initialize the language model with consistent settings."""
     return ChatOpenAI(
         model="gpt-4o-mini",
-        temperature=0.9,
+        temperature=0.7,
         api_key=os.getenv("OPENAI_API_KEY")
     )
 
@@ -40,21 +40,21 @@ def generate_title_and_description(user_input, llm):
 
             Why You Will Love this Book:
 
-            Relax while coloring. Your responsibilities seem to fade away.
-            45 beautiful illustrations images for you to express your creativity and create masterpieces.
-            Single-sided pages to prevent color bleeding and make them easy to frame
-            Large print 8.5" x 8.5" white pages with high-quality matte cover
-            Great for all skill levels
+            - Relax while coloring and let your stress fade away
+            - 50 beautiful illustrations to express your creativity
+            - Single-sided pages to prevent color bleeding and make them easy to frame
+            - Large print 8.5" x 8.5" white pages with high-quality matte cover
+            - Great for all skill levels
         "
     }}
     
     Guidelines:
-    - The title should be SEO-friendly and appealing
+    - The title should include practical keywords relevant to the theme and feel natural to a human reader
     - The description must be approximately 200 words and match the example structure
     - Use the exact "Why You Will Love this Book" section provided (word for word, no changes)
-    - Maintain a professional but engaging marketing tone
+    - Keep the tone professional but friendly
     - Highlight specific design elements, complexity level, and unique features
-    - Ensure the description sounds polished, marketable, and enticing for coloring enthusiasts
+    - Make sure the description sounds approachable, clear, and suitable for a real product listing
     
     Return ONLY the raw JSON object without any markdown formatting, code blocks, or additional text.
     """)
@@ -69,18 +69,18 @@ def generate_title_and_description(user_input, llm):
         return {"title": "", "description": ""}
 
 def generate_midjourney_prompts(description, llm):
-    """Step 2: Create 10 MidJourney prompts for image designs."""
+    """Step 2: Create 50 MidJourney prompts for image designs."""
     
     prompt = ChatPromptTemplate.from_template("""
     You are an expert at creating MidJourney prompts for coloring book designs. Based on this description:
     
     Description: {description}
     
-    Create 10 diverse MidJourney prompts that would generate excellent coloring book pages. Each prompt should:
+    Create 50 diverse MidJourney prompts that would generate excellent coloring book pages. Each prompt should:
     - Be optimized for MidJourney (include style keywords, quality settings)
     - Generate black and white line art suitable for coloring
     - Be specific and detailed about the subject/theme
-    - Vary in complexity and focus
+    - Use concise, simple language
     - Follow the same format and style as this example:
         "kameleo, drip, trippy, psychedelic, coloring book page, clean and simple line art --v 5 --q 2 --no color --ar 1:1"
     
@@ -89,14 +89,14 @@ def generate_midjourney_prompts(description, llm):
         "prompt 1",
         "prompt 2",
         ...
-        "prompt 10"
+        "prompt 50"
     ]
     
     Guidelines:
     - Always include "coloring book page" and "clean and simple line art"
     - Use descriptive artistic keywords (fantasy, mandala, surreal, geometric, etc.)
     - Add MidJourney parameters at the end: "--v 5 --q 2 --no color --ar 1:1"
-    - Ensure diversity across the 10 prompts (different themes, complexity, and style)
+    - Ensure diversity across the prompts (different themes, complexity, and style)
     
     Return ONLY the raw JSON array without any markdown formatting, code blocks, or additional text.
     """)
