@@ -3,8 +3,8 @@ import os
 import json
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
-from langchain.schema import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 
 # Load environment variables
 load_dotenv()
