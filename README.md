@@ -1,30 +1,61 @@
 # 🎨 Coloring Book Design Generator
 
-An advanced AI-powered tool that generates complete coloring book design packages using a structured 3-step reasoning process.
+An AI-powered multi-agent system that generates complete coloring book design packages with built-in quality assurance using LangGraph.
 
 ## ✨ Features
 
-- **Interactive Chat Interface**: Built with Streamlit for a user-friendly experience
-- **3-Step Reasoning Process**:
-  1. 📝 Generate marketable title and compelling description
-  2. 🎨 Create 10 MidJourney prompts for coloring book pages
-  3. 🔍 Extract high-traffic SEO keywords for marketing
-- **Professional Output**: Well-formatted results with download capabilities
-- **Session Management**: Maintains conversation history and generated content
+- **Multi-Agent Architecture**: Executor agent generates content, Evaluator agent ensures quality
+- **Iterative Refinement**: Automatic feedback loop improves output quality (up to 3 iterations)
+- **Web Search Integration**: Research trending coloring book themes and market insights
+- **Human-in-the-Loop**: Agent can ask clarifying questions when needed
+- **Quality Criteria**: Enforces best practices (no AI-sounding words, proper formatting)
+- **Complete Design Package**:
+  - Marketable title (max 60 characters)
+  - Professional description (~200 words)
+  - 50 MidJourney prompts for coloring pages
+  - 10 SEO-optimized keywords
+
+## 🏗️ Architecture
+
+```
+User Input --> Executor Agent (generates content)
+                     |
+                     +--> Tool: generate_title_description
+                     +--> Tool: generate_midjourney_prompts  
+                     +--> Tool: extract_seo_keywords
+                     +--> Tool: web_search (for trends)
+                     +--> Tool: ask_user (clarifications)
+                     |
+                     v
+              Evaluator Agent (reviews quality)
+                     |
+                     +--> Checks title/description against best practices
+                     +--> Validates MidJourney prompt format and diversity
+                     +--> Assesses SEO keyword relevance
+                     |
+                     v
+              [Pass] --> Save Report --> Done
+              [Fail] --> Feedback to Executor --> Retry (max 3 iterations)
+```
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.8+
+- Python 3.12+
 - OpenAI API key
+- [uv](https://docs.astral.sh/uv/) package manager
 
 ### Installation
 
-1. **Clone or download the project files**
-
-2. **Install dependencies**:
+1. **Clone the repository**:
    ```bash
-   pip install -r requirements.txt
+   git clone https://github.com/Spirikou/Coloring_book_assistant.git
+   cd Coloring_book_assistant
+   ```
+
+2. **Install dependencies with uv**:
+   ```bash
+   uv sync
    ```
 
 3. **Set up environment variables**:
@@ -33,55 +64,94 @@ An advanced AI-powered tool that generates complete coloring book design package
    OPENAI_API_KEY=your_openai_api_key_here
    ```
 
-4. **Run the Streamlit app**:
+4. **Run the application**:
    ```bash
-   streamlit run streamlit_app.py
+   uv run python main.py
    ```
 
-5. **Open your browser** to the URL shown in the terminal (usually `http://localhost:8501`)
-
-## 🎯 How to Use
-
-1. **Describe your vision**: Enter a description of the coloring book you want to create
-2. **Wait for processing**: The AI will work through the 3-step reasoning process
-3. **Review results**: Check the generated title, description, MidJourney prompts, and SEO keywords
-4. **Download report**: Save your complete design package as a JSON file
+   Or with a theme directly:
+   ```bash
+   uv run python main.py "forest animals coloring book for adults"
+   ```
 
 ## 📁 Project Structure
 
 ```
-CB_Assit_LangChain/
-├── main.py              # Original command-line version
-├── streamlit_app.py     # Streamlit chat interface
-├── requirements.txt     # Python dependencies
-├── README.md           # This file
-└── .env                # Environment variables (create this)
+Coloring_book_assistant/
+├── main.py              # Entry point - runs the multi-agent graph
+├── graph.py             # LangGraph workflow definition
+├── tools/
+│   ├── __init__.py
+│   ├── content_tools.py # Title, description, prompts, keywords generation
+│   ├── search_tools.py  # DuckDuckGo web search for trends
+│   └── user_tools.py    # User interaction and report saving
+├── agents/
+│   ├── __init__.py
+│   ├── executor.py      # Executor agent with tool-calling
+│   └── evaluator.py     # Evaluator agent with quality criteria
+├── pyproject.toml       # Dependencies (managed by uv)
+├── uv.lock              # Lock file
+└── .env                 # Environment variables (create this)
 ```
 
 ## 🛠️ Technical Details
 
-- **Framework**: Streamlit for the web interface
+- **Framework**: LangGraph for multi-agent orchestration
 - **AI Model**: OpenAI GPT-4o-mini via LangChain
-- **Architecture**: Modular functions for each step of the reasoning process
-- **Output Format**: JSON for easy integration with other tools
+- **Package Manager**: uv for fast, reliable dependency management
+- **Web Search**: DuckDuckGo for trend research (no API key required)
 
-## 💡 Example Usage
+### Agents
 
-**Input**: "A magical forest with hidden creatures and geometric patterns"
+| Agent | Role | Temperature |
+|-------|------|-------------|
+| Executor | Generates content using tools | 0.7 (creative) |
+| Evaluator | Reviews quality, provides feedback | 0.3 (consistent) |
+
+### Tools
+
+| Tool | Description |
+|------|-------------|
+| `generate_title_description` | Creates marketable title and description |
+| `generate_midjourney_prompts` | Generates 50 diverse MidJourney prompts |
+| `extract_seo_keywords` | Extracts 10 high-traffic SEO keywords |
+| `web_search` | Search web for any query |
+| `search_coloring_book_trends` | Get current trending themes |
+| `ask_user` | Request clarification from user |
+| `save_report` | Save results to JSON file |
+
+## 🔍 Quality Criteria
+
+The Evaluator agent checks for:
+
+- **Title**: Max 60 chars, contains keywords, sounds natural
+- **Description**: ~200 words, no banned AI words, includes required sections
+- **MidJourney Prompts**: 
+  - Exactly 50 prompts
+  - Comma-separated keywords only (no sentences)
+  - Includes `coloring book page` and `clean and simple line art`
+  - Ends with `--v 5 --q 2 --no color --ar 1:1`
+- **SEO Keywords**: 10 relevant, high-traffic terms
+
+### Banned AI Words
+The system automatically flags and rejects content containing overused AI-sounding words like: *whimsical, enchanting, captivating, mesmerizing, breathtaking, stunning, magical, delightful*, etc.
+
+## 💡 Example
+
+**Input**: 
+```
+forest animals coloring book for adults with intricate patterns
+```
 
 **Output**:
-- **Title**: "Enchanted Forest Mysteries"
-- **Description**: "A captivating collection of intricate forest scenes featuring hidden magical creatures and geometric mandala patterns, perfect for mindfulness and creative expression."
-- **10 MidJourney Prompts**: Ready-to-use prompts for generating coloring book pages
-- **10 SEO Keywords**: High-traffic terms for marketing and discoverability
-
-## 🔧 Customization
-
-You can modify the prompts in each function to:
-- Change the artistic style focus
-- Adjust the number of generated prompts/keywords
-- Modify the output format
-- Add additional reasoning steps
+- **Title**: "Wild Forest Animals Adult Coloring Book"
+- **Description**: Professional listing description with benefits section
+- **50 MidJourney Prompts**: Ready-to-use prompts like:
+  ```
+  owl, mandala, forest, detailed feathers, coloring book page, clean and simple line art --v 5 --q 2 --no color --ar 1:1
+  ```
+- **10 SEO Keywords**: "adult coloring book", "forest animals", "stress relief coloring", etc.
+- **Quality Score**: 85/100
 
 ## 📄 License
 
