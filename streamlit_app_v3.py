@@ -489,8 +489,50 @@ def main():
             st.session_state.workflow_state = None
             st.rerun()
     
+    # Check for pending question from workflow
+    workflow_state = st.session_state.get("workflow_state")
+    pending_question = ""
+    if workflow_state and isinstance(workflow_state, dict):
+        pending_question = workflow_state.get("pending_question", "")
+    
+    # Show question UI if there's a pending question
+    if pending_question and not st.session_state.is_running:
+        st.markdown("---")
+        st.info("💬 **Agent Question**")
+        st.markdown(f"**{pending_question}**")
+        
+        # Answer input
+        answer_key = "user_answer_input"
+        user_answer = st.text_input(
+            "Your answer:",
+            key=answer_key,
+            placeholder="Type your answer here..."
+        )
+        
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("✅ Submit Answer", type="primary"):
+                if user_answer.strip():
+                    # Update workflow state with answer
+                    workflow_state["user_answer"] = user_answer.strip()
+                    workflow_state["pending_question"] = ""
+                    workflow_state["status"] = "generating"
+                    st.session_state.workflow_state = workflow_state
+                    st.session_state.is_running = True
+                    st.rerun()
+                else:
+                    st.warning("Please provide an answer.")
+        with col2:
+            if st.button("❌ Skip Question"):
+                workflow_state["user_answer"] = "No response provided"
+                workflow_state["pending_question"] = ""
+                workflow_state["status"] = "generating"
+                st.session_state.workflow_state = workflow_state
+                st.session_state.is_running = True
+                st.rerun()
+    
     # Generation process
-    if generate_btn and user_request.strip():
+    elif generate_btn and user_request.strip():
         st.session_state.is_running = True
         
         st.markdown("---")
@@ -508,6 +550,28 @@ def main():
     
     elif generate_btn and not user_request.strip():
         st.warning("Please enter a description.")
+    
+    # Resume workflow if we have an answer and workflow is waiting
+    elif workflow_state and workflow_state.get("status") == "waiting_for_user" and workflow_state.get("user_answer"):
+        st.session_state.is_running = True
+        st.markdown("---")
+        with st.spinner("🔄 Continuing workflow with your answer..."):
+            try:
+                # Continue the workflow by running the full graph with updated state
+                from graph import create_coloring_book_graph
+                app = create_coloring_book_graph()
+                # Get current state and continue - the executor will see user_answer and resume
+                current_state = workflow_state.copy()
+                # Run the full graph to continue (executor -> output)
+                updated_state = app.invoke(current_state)
+                st.session_state.workflow_state = updated_state
+                st.session_state.is_running = False
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error continuing workflow: {e}")
+                import traceback
+                st.code(traceback.format_exc())
+                st.session_state.is_running = False
     
     # Display results
     if st.session_state.workflow_state:

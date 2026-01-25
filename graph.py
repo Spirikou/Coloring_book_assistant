@@ -10,7 +10,7 @@ from langgraph.prebuilt import create_react_agent
 from dotenv import load_dotenv
 
 from agents.executor import get_executor_tools, EXECUTOR_SYSTEM_PROMPT
-from tools.user_tools import save_report, display_results
+from tools.user_tools import save_report, display_results, UserQuestionException, get_pending_question, clear_pending_question
 
 load_dotenv()
 
@@ -49,6 +49,25 @@ class ColoringBookState(TypedDict):
     # Workflow state
     messages: list
     status: str
+    
+    # User interaction
+    pending_question: str  # Question waiting for user answer
+    user_answer: str  # User's answer to the pending question
+    
+    # Image generation state
+    images_folder_path: str  # Path to folder containing generated images
+    uploaded_images: list  # List of image file paths
+    images_ready: bool  # Flag indicating images are ready for next step
+    
+    # Workflow tracking
+    workflow_stage: str  # Current stage: "design", "images", "future_step_1", etc.
+    completed_stages: list  # List of completed workflow stages
+    
+    # Step completion status for real-time progress updates
+    theme_status: str  # "pending", "in_progress", "completed", "failed"
+    title_status: str  # "pending", "in_progress", "completed", "failed"
+    prompts_status: str  # "pending", "in_progress", "completed", "failed"
+    keywords_status: str  # "pending", "in_progress", "completed", "failed"
 
 
 def create_executor_node():
@@ -75,18 +94,76 @@ def executor_node(state: ColoringBookState) -> ColoringBookState:
     print("\n🔄 Executor Agent - Generating content with quality evaluation...")
     
     executor = create_executor_node()
+    new_state = state.copy()
     
-    # Build the message for the executor
-    user_message = f"Please create a complete coloring book design package for: {state['user_request']}"
+    # Initialize status fields if not present
+    if "theme_status" not in new_state:
+        new_state["theme_status"] = "pending"
+    if "title_status" not in new_state:
+        new_state["title_status"] = "pending"
+    if "prompts_status" not in new_state:
+        new_state["prompts_status"] = "pending"
+    if "keywords_status" not in new_state:
+        new_state["keywords_status"] = "pending"
+    
+    # Check if we have a pending answer from the user (resuming after question)
+    if state.get("user_answer"):
+        # Resume with the user's answer - add it to existing messages or create new context
+        existing_messages = state.get("messages", [])
+        if existing_messages:
+            # Continue from where we left off
+            messages = existing_messages + [
+                HumanMessage(content=f"User clarification: {state['user_answer']}")
+            ]
+        else:
+            # Start fresh with the clarification
+            user_message = f"Please create a complete coloring book design package for: {state['user_request']}\n\nUser clarification: {state['user_answer']}"
+            messages = [HumanMessage(content=user_message)]
+        # Clear the answer so we don't reuse it
+        new_state["user_answer"] = ""
+        new_state["pending_question"] = ""
+    else:
+        # Starting fresh
+        user_message = f"Please create a complete coloring book design package for: {state['user_request']}"
+        messages = [HumanMessage(content=user_message)]
 
-    # Run the executor agent
-    messages = [HumanMessage(content=user_message)]
-    result = executor.invoke({"messages": messages})
+    # Run the executor agent - catch questions
+    try:
+        result = executor.invoke({"messages": messages})
+        # Check for pending question in case exception was caught by framework
+        pending_q = get_pending_question()
+        if pending_q:
+            print(f"\n❓ Agent Question: {pending_q}")
+            new_state["pending_question"] = pending_q
+            new_state["status"] = "waiting_for_user"
+            new_state["user_answer"] = ""  # Clear any previous answer
+            clear_pending_question()
+            return new_state
+    except UserQuestionException as e:
+        # Agent asked a question - pause workflow and store it
+        print(f"\n❓ Agent Question: {e.question}")
+        new_state["pending_question"] = e.question
+        new_state["status"] = "waiting_for_user"
+        new_state["user_answer"] = ""  # Clear any previous answer
+        clear_pending_question()
+        return new_state
+    except Exception as e:
+        # Check if it's a wrapped UserQuestionException
+        pending_q = get_pending_question()
+        if pending_q:
+            print(f"\n❓ Agent Question: {pending_q}")
+            new_state["pending_question"] = pending_q
+            new_state["status"] = "waiting_for_user"
+            new_state["user_answer"] = ""
+            clear_pending_question()
+            return new_state
+        # Re-raise if it's a different exception
+        raise
     
     # Extract the generated content from tool calls
-    new_state = state.copy()
     new_state["messages"] = result.get("messages", [])
     new_state["status"] = "complete"
+    new_state["pending_question"] = ""  # Clear any pending question
     
     # Extract results from tool messages
     for message in result.get("messages", []):
@@ -110,6 +187,8 @@ def executor_node(state: ColoringBookState) -> ColoringBookState:
                         new_state["theme_score"] = content.get("final_score", 0)
                         new_state["theme_passed"] = content.get("passed", False)
                         new_state["style_research"] = content.get("style_research", {})
+                        # Update status
+                        new_state["theme_status"] = "completed" if content.get("passed", False) else "completed"
                 
                 # Handle the generate_and_refine tools
                 elif tool_name == "generate_and_refine_title_description":
@@ -120,6 +199,8 @@ def executor_node(state: ColoringBookState) -> ColoringBookState:
                         new_state["title_attempts"] = content.get("attempts", [])
                         new_state["title_score"] = content.get("final_score", 0)
                         new_state["title_passed"] = content.get("passed", False)
+                        # Update status
+                        new_state["title_status"] = "completed"
                         
                 elif tool_name == "generate_and_refine_prompts":
                     if isinstance(content, dict):
@@ -127,6 +208,8 @@ def executor_node(state: ColoringBookState) -> ColoringBookState:
                         new_state["prompts_attempts"] = content.get("attempts", [])
                         new_state["prompts_score"] = content.get("final_score", 0)
                         new_state["prompts_passed"] = content.get("passed", False)
+                        # Update status
+                        new_state["prompts_status"] = "completed"
                         
                 elif tool_name == "generate_and_refine_keywords":
                     if isinstance(content, dict):
@@ -134,6 +217,8 @@ def executor_node(state: ColoringBookState) -> ColoringBookState:
                         new_state["keywords_attempts"] = content.get("attempts", [])
                         new_state["keywords_score"] = content.get("final_score", 0)
                         new_state["keywords_passed"] = content.get("passed", False)
+                        # Update status
+                        new_state["keywords_status"] = "completed"
                 
                 # Legacy tool support
                 elif tool_name == "generate_title_description":
@@ -271,7 +356,22 @@ def run_coloring_book_agent(user_request: str) -> ColoringBookState:
         "keywords_passed": False,
         # Workflow state
         "messages": [],
-        "status": "generating"
+        "status": "generating",
+        # User interaction
+        "pending_question": "",
+        "user_answer": "",
+        # Image generation state
+        "images_folder_path": "",
+        "uploaded_images": [],
+        "images_ready": False,
+        # Workflow tracking
+        "workflow_stage": "design",
+        "completed_stages": [],
+        # Step completion status
+        "theme_status": "pending",
+        "title_status": "pending",
+        "prompts_status": "pending",
+        "keywords_status": "pending"
     }
     
     # Create and run the graph

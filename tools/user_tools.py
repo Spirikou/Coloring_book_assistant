@@ -5,6 +5,30 @@ import os
 from datetime import datetime
 from langchain_core.tools import tool
 
+# Global storage for questions (fallback if exception is caught)
+_pending_question = None
+
+
+class UserQuestionException(Exception):
+    """Exception raised when agent asks a question - used to pause workflow for UI interaction."""
+    def __init__(self, question: str):
+        global _pending_question
+        self.question = question
+        _pending_question = question  # Store as fallback
+        super().__init__(f"User question: {question}")
+
+
+def get_pending_question():
+    """Get the pending question if one exists."""
+    global _pending_question
+    return _pending_question
+
+
+def clear_pending_question():
+    """Clear the pending question."""
+    global _pending_question
+    _pending_question = None
+
 
 @tool
 def ask_user(question: str) -> str:
@@ -12,15 +36,26 @@ def ask_user(question: str) -> str:
     Ask the user a clarifying question and wait for their response.
     Use this when you need more information to proceed with the task.
     
+    In Streamlit mode, this will pause the workflow and display the question in the UI.
+    In terminal mode, it will prompt for input.
+    
     Args:
         question: The question to ask the user.
         
     Returns:
         The user's response as a string.
     """
-    print(f"\n❓ Agent Question: {question}")
-    response = input("Your answer: ")
-    return response.strip() if response.strip() else "No response provided"
+    # Check if we're running in Streamlit
+    try:
+        import streamlit as st
+        # If streamlit is available, raise exception to pause workflow
+        # The question will be stored in state and displayed in UI
+        raise UserQuestionException(question)
+    except ImportError:
+        # Not in Streamlit - use terminal input
+        print(f"\n❓ Agent Question: {question}")
+        response = input("Your answer: ")
+        return response.strip() if response.strip() else "No response provided"
 
 
 @tool
