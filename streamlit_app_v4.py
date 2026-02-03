@@ -16,9 +16,11 @@ import json
 from pathlib import Path
 from dotenv import load_dotenv
 
-from graph import run_coloring_book_agent, create_coloring_book_graph
+from workflows.design.graph import run_coloring_book_agent, create_coloring_book_graph
 from utils.folder_monitor import get_images_in_folder, validate_image_count, get_image_metadata
 from utils.image_utils import validate_image_file, create_thumbnail
+from utils.state_persistence import save_workflow_state, load_workflow_state, list_saved_states, delete_saved_state
+from ui.tabs.pinterest_tab import render_pinterest_tab
 
 # Load environment variables
 load_dotenv()
@@ -481,19 +483,38 @@ def render_image_generation_tab(state: dict):
         found_count = validation["found_count"]
         status = validation["status"]
         
+        # Show informational status (not blocking)
         if status == "complete":
-            st.success(f"✅ Found {found_count} of {expected_count} images - Ready!")
+            st.info(f"📊 Found {found_count} of {expected_count} images (all expected images present)")
         elif status == "partial":
-            st.warning(f"⚠️ Found {found_count} of {expected_count} images - {validation['missing_count']} missing")
+            st.info(f"📊 Found {found_count} of {expected_count} images ({validation['missing_count']} missing - you can still publish with available images)")
         elif status == "empty":
-            st.info(f"📁 Folder is empty. Place {expected_count} images in: {folder_path}")
+            st.info(f"📁 Folder is empty. Place images in: `{folder_path}`")
         else:
             st.info(f"📊 Found {found_count} images (expected {expected_count})")
         
         # Update state
         state["uploaded_images"] = images
-        state["images_ready"] = (status == "complete")
+        # Images ready if any images exist (not requiring all expected)
+        state["images_ready"] = len(images) > 0
         st.session_state.workflow_state = state
+        
+        # Validation button to explicitly mark images as ready
+        if images:
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                if status == "complete":
+                    st.success(f"✅ All {found_count} expected images found - Ready to publish!")
+                elif status == "partial":
+                    st.warning(f"⚠️ Found {found_count} of {expected_count} images. You can still publish with available images.")
+                else:
+                    st.info(f"📊 Found {found_count} images (expected {expected_count})")
+            with col2:
+                if st.button("✅ Mark Images as Ready", key="validate_images_btn", help="Explicitly mark these images as ready for Pinterest publishing"):
+                    state["images_ready"] = True
+                    st.session_state.workflow_state = state
+                    st.success("✅ Images marked as ready for Pinterest publishing!")
+                    st.rerun()
         
         # Image gallery
         if images:
@@ -661,11 +682,60 @@ def main():
             st.success("✅ API key loaded")
         
         st.markdown("---")
+        st.markdown("### 💾 Saved Designs")
+        
+        # Save current state
+        workflow_state = st.session_state.get("workflow_state")
+        if workflow_state and workflow_state.get("title"):
+            save_name = st.text_input("Save as:", value=workflow_state.get("title", ""), key="save_name_input")
+            if st.button("💾 Save Current Design", key="save_design_btn"):
+                try:
+                    filepath = save_workflow_state(workflow_state, name=save_name if save_name else None)
+                    st.success(f"✅ Design saved!")
+                    st.info(f"Saved to: `{filepath}`")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error saving: {e}")
+        
+        st.markdown("---")
+        st.markdown("### 📂 Load Previous Design")
+        
+        # List saved states
+        saved_states = list_saved_states()
+        if saved_states:
+            for state_info in saved_states[:10]:  # Show latest 10
+                with st.expander(f"📄 {state_info['title']}", expanded=False):
+                    st.caption(f"Saved: {state_info['saved_at']}")
+                    if state_info['description']:
+                        st.text(state_info['description'][:150])
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("📂 Load", key=f"load_{state_info['name']}"):
+                            loaded_state = load_workflow_state(state_info['filepath'])
+                            if loaded_state:
+                                st.session_state.workflow_state = loaded_state
+                                st.success("✅ Design loaded!")
+                                st.rerun()
+                            else:
+                                st.error("❌ Failed to load design")
+                    with col2:
+                        if st.button("🗑️ Delete", key=f"delete_{state_info['name']}"):
+                            if delete_saved_state(state_info['filepath']):
+                                st.success("✅ Deleted!")
+                                st.rerun()
+                            else:
+                                st.error("❌ Failed to delete")
+        else:
+            st.info("No saved designs yet. Generate a design and save it!")
+        
+        st.markdown("---")
         st.markdown("### 📋 Workflow Stages")
         st.markdown("""
         1. **Design Generation** - Create design package
         2. **Image Generation** - Upload/generate images
-        3. **Future Steps** - Coming soon
+        3. **Pinterest Publishing** - Publish to Pinterest
+        4. **Future Steps** - Coming soon
         """)
     
     # Initialize session state
@@ -679,8 +749,8 @@ def main():
     tab1, tab2, tab3, tab4 = st.tabs([
         "🎨 Design Generation",
         "🖼️ Image Generation",
-        "📄 Future Step 1",
-        "📄 Future Step 2"
+        "📌 Pinterest Publishing",
+        "📄 Future Step"
     ])
     
     with tab1:
@@ -694,10 +764,14 @@ def main():
             st.info("💡 Generate a design package first in the Design Generation tab.")
     
     with tab3:
-        render_placeholder_tab("Future Step 1")
+        workflow_state = st.session_state.get("workflow_state")
+        if workflow_state:
+            render_pinterest_tab(workflow_state)
+        else:
+            st.info("💡 Generate a design package and upload images first.")
     
     with tab4:
-        render_placeholder_tab("Future Step 2")
+        render_placeholder_tab("Future Step")
     
     # Footer
     st.markdown("---")
