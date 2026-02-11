@@ -6,8 +6,6 @@ Uses Tab navigation instead of fragile element selectors.
 import json
 import logging
 import time
-import threading
-import asyncio
 from pathlib import Path
 from typing import Optional
 
@@ -191,166 +189,49 @@ class PinterestPublisher:
             self._close_browser()
     
     def _launch_browser(self) -> None:
-        """Launch or connect to Chromium-based browser (Chrome, Brave, Edge, etc.)."""
+        """
+        Launch or connect to Chromium-based browser (Chrome, Brave, Edge, etc.).
+        
+        Note: When called from multiprocessing, this runs in a separate process
+        with a normal event loop, so the simple direct approach works.
+        """
         if self.connect_existing:
             browser_name = BROWSER_TYPE.capitalize()
             logger.info(f"Connecting to existing {browser_name} on port {DEBUG_PORT}...")
             if workflow_logger:
                 workflow_logger.log(f"Starting browser connection to {browser_name} on port {DEBUG_PORT}", "INFO")
             
-            # Check if we're in Streamlit
-            logger.info("Checking Streamlit context...")
-            in_streamlit = _is_in_streamlit_context(force_check=self.force_streamlit_mode)
-            
-            logger.info(f"Streamlit detection result: {in_streamlit} (force_mode={self.force_streamlit_mode})")
-            if workflow_logger:
-                workflow_logger.log_action("streamlit_detection", {
-                    "detected": in_streamlit,
-                    "force_mode": self.force_streamlit_mode
-                })
-            
-            if in_streamlit:
-                logger.info("Using threaded Playwright initialization (Streamlit detected)")
-                if workflow_logger:
-                    workflow_logger.log("Using threaded Playwright path", "INFO")
-                playwright_result = {}
-                playwright_error = {}
-                
-                def run_playwright():
-                    try:
-                        # Create a completely new event loop in this thread
-                        # On Windows, use ProactorEventLoop which supports subprocess creation
-                        # This is critical - Streamlit's event loop doesn't support subprocess creation
-                        logger.info("Thread: Creating new event loop...")
-                        if workflow_logger:
-                            workflow_logger.log("Thread: Creating new event loop to avoid Streamlit's event loop", "INFO")
-                        
-                        import sys
-                        if sys.platform == 'win32':
-                            # On Windows, ProactorEventLoop supports subprocess creation
-                            new_loop = asyncio.ProactorEventLoop()
-                            logger.info("Thread: Using ProactorEventLoop (Windows)")
-                        else:
-                            # On Unix, use default event loop
-                            new_loop = asyncio.new_event_loop()
-                            logger.info("Thread: Using new event loop (Unix)")
-                        
-                        asyncio.set_event_loop(new_loop)
-                        
-                        logger.info("Thread: Event loop set, starting Playwright...")
-                        if workflow_logger:
-                            workflow_logger.log("Thread: Event loop set, starting Playwright initialization", "INFO")
-                        
-                        playwright_result['playwright'] = sync_playwright().start()
-                        playwright = playwright_result['playwright']
-                        
-                        # Try localhost first (works for both IPv4 and IPv6), fallback to 127.0.0.1
-                        try:
-                            logger.info(f"Thread: Connecting to browser via localhost:{DEBUG_PORT}")
-                            cdp_browser = playwright.chromium.connect_over_cdp(f"http://localhost:{DEBUG_PORT}")
-                        except Exception as e1:
-                            logger.info(f"Thread: localhost failed, trying 127.0.0.1:{DEBUG_PORT} - {e1}")
-                            cdp_browser = playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{DEBUG_PORT}")
-                        
-                        contexts = cdp_browser.contexts
-                        logger.info(f"Thread: Found {len(contexts)} browser contexts")
-                        if contexts:
-                            browser = contexts[0]
-                        else:
-                            logger.info("Thread: No existing contexts, creating new context")
-                            browser = cdp_browser.new_context()
-                        
-                        page = browser.new_page()
-                        logger.info(f"Thread: Page created, URL: {page.url}")
-                        if workflow_logger:
-                            workflow_logger.log(f"Thread: Page created successfully, URL: {page.url}", "INFO")
-                        
-                        playwright_result['cdp_browser'] = cdp_browser
-                        playwright_result['browser'] = browser
-                        playwright_result['page'] = page
-                        logger.info("Thread: Playwright initialization completed successfully")
-                        if workflow_logger:
-                            workflow_logger.log("Thread: Playwright initialization completed successfully", "INFO")
-                    except Exception as e:
-                        import traceback
-                        error_trace = traceback.format_exc()
-                        logger.error(f"Thread error: {e}\n{error_trace}")
-                        if workflow_logger:
-                            workflow_logger.log_error(e, "run_playwright_thread")
-                        playwright_error['error'] = e
-                        playwright_error['traceback'] = error_trace
-                    finally:
-                        # Note: We don't close the loop here because Playwright needs it to stay alive
-                        # The loop will be cleaned up when the thread ends
-                        pass
-                
-                thread = threading.Thread(target=run_playwright, daemon=False)
-                thread.start()
-                thread.join(timeout=30)  # 30 second timeout
-                
-                if thread.is_alive():
-                    raise Exception(f"Timeout connecting to {browser_name}. Make sure it's running with --remote-debugging-port={DEBUG_PORT}")
-                
-                if 'error' in playwright_error:
-                    error = playwright_error['error']
-                    traceback_str = playwright_error.get('traceback', '')
-                    logger.error(f"Thread failed to connect: {error}")
-                    if traceback_str:
-                        logger.error(f"Traceback: {traceback_str}")
-                    if workflow_logger:
-                        workflow_logger.log_error(error, "browser_connection_thread")
-                    raise error
-                
-                if 'playwright' not in playwright_result:
-                    error_msg = f"Failed to initialize Playwright connection to {browser_name}"
-                    logger.error(error_msg)
-                    if workflow_logger:
-                        workflow_logger.log_error(Exception(error_msg), "browser_connection_thread")
-                    raise Exception(error_msg)
-                
-                self.playwright = playwright_result['playwright']
-                self.cdp_browser = playwright_result['cdp_browser']
-                self.browser = playwright_result['browser']
-                self.page = playwright_result['page']
-                
-                # Verify page is valid
-                if self.page:
-                    page_url = self.page.url
-                    logger.info(f"Connected to existing {browser_name}! Page URL: {page_url}")
-                    if workflow_logger:
-                        workflow_logger.log(f"Browser connected successfully. Page URL: {page_url}", "INFO")
-                else:
-                    logger.warning("Page object is None after connection")
-                    if workflow_logger:
-                        workflow_logger.log("WARNING: Page object is None after connection", "WARNING")
-                
-                return
-            else:
-                # Normal execution (not in Streamlit)
-                logger.info("Using direct Playwright initialization (not in Streamlit)")
-                if workflow_logger:
-                    workflow_logger.log("Using direct Playwright path (not in Streamlit)", "INFO")
-                self.playwright = sync_playwright().start()
+            # Simple direct approach - works in separate process (multiprocessing)
+            # or in normal Python process (CLI). No threading needed.
+            self.playwright = sync_playwright().start()
+            try:
+                # Try localhost first (works for both IPv4 and IPv6), fallback to 127.0.0.1
                 try:
-                    # Try localhost first (works for both IPv4 and IPv6), fallback to 127.0.0.1
-                    try:
-                        self.cdp_browser = self.playwright.chromium.connect_over_cdp(f"http://localhost:{DEBUG_PORT}")
-                    except:
-                        self.cdp_browser = self.playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{DEBUG_PORT}")
-                    contexts = self.cdp_browser.contexts
-                    if contexts:
-                        self.browser = contexts[0]
-                    self.page = self.browser.new_page()
-                    page_url = self.page.url if self.page else "unknown"
-                    logger.info(f"Connected to existing {browser_name}! Page URL: {page_url}")
-                    if workflow_logger:
-                        workflow_logger.log(f"Browser connected (direct path). Page URL: {page_url}", "INFO")
-                    return
-                except Exception as e:
-                    logger.error(f"Failed to connect: {e}")
-                    if workflow_logger:
-                        workflow_logger.log_error(e, "browser_connection_direct")
-                    raise
+                    logger.info(f"Connecting to browser via localhost:{DEBUG_PORT}")
+                    self.cdp_browser = self.playwright.chromium.connect_over_cdp(f"http://localhost:{DEBUG_PORT}")
+                except Exception as e1:
+                    logger.info(f"localhost failed, trying 127.0.0.1:{DEBUG_PORT} - {e1}")
+                    self.cdp_browser = self.playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{DEBUG_PORT}")
+                
+                contexts = self.cdp_browser.contexts
+                logger.info(f"Found {len(contexts)} browser contexts")
+                if contexts:
+                    self.browser = contexts[0]
+                else:
+                    logger.info("No existing contexts, creating new context")
+                    self.browser = self.cdp_browser.new_context()
+                
+                self.page = self.browser.new_page()
+                page_url = self.page.url if self.page else "unknown"
+                logger.info(f"Connected to existing {browser_name}! Page URL: {page_url}")
+                if workflow_logger:
+                    workflow_logger.log(f"Browser connected successfully. Page URL: {page_url}", "INFO")
+                return
+            except Exception as e:
+                logger.error(f"Failed to connect: {e}")
+                if workflow_logger:
+                    workflow_logger.log_error(e, "browser_connection")
+                raise
         
         raise Exception("Please use --connect mode with an existing browser window")
     
