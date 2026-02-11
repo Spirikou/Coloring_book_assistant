@@ -1,0 +1,25 @@
+{
+  "design_modal": {
+    "width_input": {"x": 575, "y": 180},
+    "height_input": {"x": 975, "y": 180},
+    "unit_selector": {"x": 1100, "y": 180}
+  },
+  "uploads_panel": {
+    "uploads_sidebar_button": {
+      "x": 25,
+      "y": 420,
+      "note": "Left sidebar Uploads icon (cloud with upward arrow) - Step 3"
+    },
+    "upload_files_button": {
+      "x": 270,
+      "y": 180,
+      "note": "Upload files button (purple button in Uploads panel) - Step 4"
+    },
+    "uploaded_image_click": {
+      "x": 150,
+      "y": 370,
+      "note": "Click on newly uploaded image to place it on canvas - Step 6"
+    }
+  },
+  "instructions": "Simple workflow: Upload one image at a time, place it, add blank page, repeat."
+}

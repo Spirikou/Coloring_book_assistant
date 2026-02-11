@@ -17,10 +17,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from workflows.design.graph import run_coloring_book_agent, create_coloring_book_graph
-from utils.folder_monitor import get_images_in_folder, validate_image_count, get_image_metadata
+from utils.folder_monitor import get_images_in_folder, get_image_metadata
 from utils.image_utils import validate_image_file, create_thumbnail
 from utils.state_persistence import save_workflow_state, load_workflow_state, list_saved_states, delete_saved_state
+from ui.tabs.guide_tab import render_guide_tab
 from ui.tabs.pinterest_tab import render_pinterest_tab
+from ui.tabs.canva_tab import render_canva_tab
 
 # Load environment variables
 load_dotenv()
@@ -121,7 +123,6 @@ def render_attempt(attempt: dict, attempt_num: int, component_type: str):
                 st.markdown(f"**Summary:** {summary}")
         
         if feedback and not passed:
-            st.markdown("---")
             st.markdown("**📤 Feedback sent to Executor for next attempt:**")
             st.text_area("Feedback content", feedback, height=100, disabled=True, label_visibility="collapsed", key=f"feedback_{component_type}_{attempt_num}")
 
@@ -159,7 +160,6 @@ def render_theme_attempt(attempt: dict, attempt_num: int):
                      delta_color="normal" if passed else "inverse")
         
         if feedback and not passed:
-            st.markdown("---")
             st.markdown("**📤 Feedback for refinement:**")
             st.text_area("Feedback for refinement", feedback[:500], height=80, disabled=True, label_visibility="collapsed", key=f"feedback_theme_{attempt_num}")
 
@@ -180,13 +180,11 @@ def render_component_section(title: str, attempts: list, component_type: str, fi
             render_theme_attempt(attempt, i)
         else:
             render_attempt(attempt, i, component_type)
-    
-    st.markdown("---")
 
 
 def render_progress_overview(state: dict):
     """Render high-level progress overview with real-time status."""
-    st.markdown("## 📊 Workflow Progress")
+    st.markdown("### 📊 Workflow Progress")
     
     # Get status for each step
     theme_status = state.get("theme_status", "pending")
@@ -274,13 +272,11 @@ def render_progress_overview(state: dict):
         )
         if keywords_status == "in_progress":
             st.progress(0.5)
-    
-    st.markdown("---")
 
 
 def render_final_results_compact(state: dict):
     """Render compact final results display."""
-    st.markdown("## ✨ Generated Design Package")
+    st.markdown("### ✨ Generated Design Package")
     
     # Title and Description
     title = state.get("title", "")
@@ -393,8 +389,6 @@ def render_final_results_compact(state: dict):
         )
         
         st.json(report)
-    
-    st.markdown("---")
 
 
 def render_attempt_history_collapsed(state: dict):
@@ -443,105 +437,83 @@ def render_attempt_history_collapsed(state: dict):
 
 
 def render_image_generation_tab(state: dict):
-    """Render Image Generation tab with folder monitoring."""
+    """Render Image Generation tab with folder monitoring and click-to-select image grid."""
     st.markdown("## 🖼️ Image Generation")
-    st.markdown("Place your generated images in a folder, and we'll monitor it for you.")
-    
-    # Folder selection
     default_folder = state.get("images_folder_path", "./generated_images/")
     folder_path = st.text_input(
         "📁 Image Folder Path",
         value=default_folder,
-        help="Path to the folder containing your generated images"
+        help="Path to the folder containing your generated images",
+        key="image_folder_input"
     )
-    
-    # Update state
-    if folder_path != default_folder:
-        state["images_folder_path"] = folder_path
-        st.session_state.workflow_state = state
-    
-    # Refresh button
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        refresh_btn = st.button("🔄 Refresh", key="refresh_images")
-    
-    # Get expected number of images from prompts
-    expected_count = len(state.get("midjourney_prompts", []))
-    
-    if expected_count == 0:
-        st.info("💡 Generate a design package first to see expected image count.")
+    images = get_images_in_folder(folder_path) if folder_path and os.path.exists(folder_path) else []
+    found_count = len(images)
+    state["images_folder_path"] = folder_path
+    btn1, btn2, btn3, _ = st.columns([1, 1, 1, 5])
+    with btn1:
+        if st.button("🔄 Refresh", key="refresh_images"):
+            st.rerun()
+    with btn2:
+        if st.button("Select All", key="select_all_images", disabled=found_count == 0):
+            if found_count > 0:
+                state["selected_images"] = images
+                st.session_state.workflow_state = state
+                st.rerun()
+    with btn3:
+        if st.button("Clear", key="clear_image_selection"):
+            state["selected_images"] = []
+            st.session_state.workflow_state = state
+            st.rerun()
+
+    if not folder_path:
+        st.info("Enter a folder path.")
         return
-    
-    st.markdown(f"**Expected Images:** {expected_count}")
-    
-    # Monitor folder
-    if folder_path and os.path.exists(folder_path):
-        images = get_images_in_folder(folder_path)
-        validation = validate_image_count(folder_path, expected_count)
-        
-        # Status display
-        found_count = validation["found_count"]
-        status = validation["status"]
-        
-        # Show informational status (not blocking)
-        if status == "complete":
-            st.info(f"📊 Found {found_count} of {expected_count} images (all expected images present)")
-        elif status == "partial":
-            st.info(f"📊 Found {found_count} of {expected_count} images ({validation['missing_count']} missing - you can still publish with available images)")
-        elif status == "empty":
-            st.info(f"📁 Folder is empty. Place images in: `{folder_path}`")
-        else:
-            st.info(f"📊 Found {found_count} images (expected {expected_count})")
-        
-        # Update state
-        state["uploaded_images"] = images
-        # Images ready if any images exist (not requiring all expected)
-        state["images_ready"] = len(images) > 0
+
+    if not os.path.exists(folder_path):
+        st.info("Folder not found.")
+        return
+
+    if found_count == 0:
+        st.info("Folder empty.")
+        state["uploaded_images"] = []
+        state["images_ready"] = False
+        state["selected_images"] = []
         st.session_state.workflow_state = state
-        
-        # Validation button to explicitly mark images as ready
-        if images:
-            col1, col2 = st.columns([2, 1])
-            with col1:
-                if status == "complete":
-                    st.success(f"✅ All {found_count} expected images found - Ready to publish!")
-                elif status == "partial":
-                    st.warning(f"⚠️ Found {found_count} of {expected_count} images. You can still publish with available images.")
-                else:
-                    st.info(f"📊 Found {found_count} images (expected {expected_count})")
-            with col2:
-                if st.button("✅ Mark Images as Ready", key="validate_images_btn", help="Explicitly mark these images as ready for Pinterest publishing"):
-                    state["images_ready"] = True
-                    st.session_state.workflow_state = state
-                    st.success("✅ Images marked as ready for Pinterest publishing!")
-                    st.rerun()
-        
-        # Image gallery
-        if images:
-            st.markdown("### 📸 Image Gallery")
-            
-            # Display images in grid
-            cols_per_row = 3
-            for i in range(0, len(images), cols_per_row):
-                cols = st.columns(cols_per_row)
-                for j, img_path in enumerate(images[i:i+cols_per_row]):
-                    with cols[j]:
-                        try:
-                            # Create thumbnail
-                            thumbnail = create_thumbnail(img_path, (300, 300))
-                            if thumbnail:
-                                st.image(thumbnail, use_container_width=True)
-                            
-                            # Image info
-                            metadata = get_image_metadata(img_path)
-                            st.caption(f"📄 {metadata.get('filename', Path(img_path).name)}")
-                            st.caption(f"📊 {metadata.get('size_mb', 0)} MB")
-                        except Exception as e:
-                            st.error(f"Error loading image: {e}")
-                            st.text(Path(img_path).name)
-    else:
-        st.warning(f"⚠️ Folder not found: {folder_path}")
-        st.info(f"Please create the folder or update the path.")
+        return
+
+    current_selected = set(state.get("selected_images", []))
+    if not current_selected:
+        current_selected = set(images)
+
+    sel_count = len(current_selected)
+    sel_text = f"{sel_count} selected" if sel_count < found_count else "all"
+    st.caption(f"Found {found_count} images. {sel_text} (empty = use all). Click checkboxes to select.")
+
+    cols_per_row = 5
+    thumbnail_size = (140, 140)
+    new_selected = []
+    for i in range(0, len(images), cols_per_row):
+        cols = st.columns(cols_per_row)
+        for j, img_path in enumerate(images[i:i + cols_per_row]):
+            with cols[j]:
+                try:
+                    thumbnail = create_thumbnail(img_path, thumbnail_size)
+                    if thumbnail:
+                        st.image(thumbnail, use_container_width=True)
+                    fname = Path(img_path).name
+                    short_name = fname[:20] + "..." if len(fname) > 20 else fname
+                    key = f"img_sel_{i + j}_{hash(img_path) % 100000}"
+                    is_checked = st.checkbox(short_name, value=img_path in current_selected, key=key)
+                    if is_checked:
+                        new_selected.append(img_path)
+                except Exception as e:
+                    st.caption(Path(img_path).name)
+                    st.error(str(e)[:30])
+
+    state["selected_images"] = new_selected
+    state["uploaded_images"] = images
+    state["images_ready"] = len(images) > 0
+    st.session_state.workflow_state = state
 
 
 def render_placeholder_tab(tab_name: str):
@@ -554,13 +526,8 @@ def render_placeholder_tab(tab_name: str):
 def render_design_generation_tab():
     """Render the Design Generation tab with all three sections."""
     st.markdown("## 🎨 Design Generation")
-    
-    # Get workflow state
     workflow_state = st.session_state.get("workflow_state")
-    
-    # Input section
     st.subheader("📝 Describe Your Coloring Book")
-    
     user_request = st.text_area(
         "What kind of coloring book would you like to create?",
         placeholder="Example: A forest animals coloring book for adults with intricate mandala patterns...",
@@ -575,12 +542,50 @@ def render_design_generation_tab():
         if st.button("🔄 Clear", disabled=st.session_state.get("is_running", False)):
             st.session_state.workflow_state = None
             st.rerun()
-    
+
+    st.markdown("**💾 Saved Designs**")
+    if workflow_state and workflow_state.get("title"):
+        save_name = st.text_input("Save as:", value=workflow_state.get("title", ""), key="save_name_input")
+        if st.button("💾 Save Current Design", key="save_design_btn"):
+            try:
+                filepath = save_workflow_state(workflow_state, name=save_name if save_name else None)
+                st.success("Design saved!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error saving: {e}")
+
+    st.markdown("**📂 Load Previous Design**")
+    saved_states = list_saved_states()
+    if saved_states:
+        for state_info in saved_states[:10]:
+            with st.expander(f"📄 {state_info['title']}", expanded=False):
+                st.caption(f"Saved: {state_info['saved_at']}")
+                if state_info['description']:
+                    st.text(state_info['description'][:150])
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("📂 Load", key=f"load_{state_info['name']}"):
+                        loaded_state = load_workflow_state(state_info['filepath'])
+                        if loaded_state:
+                            st.session_state.workflow_state = loaded_state
+                            st.success("Design loaded!")
+                            st.rerun()
+                        else:
+                            st.error("Failed to load design")
+                with col2:
+                    if st.button("🗑️ Delete", key=f"delete_{state_info['name']}"):
+                        if delete_saved_state(state_info['filepath']):
+                            st.success("Deleted!")
+                            st.rerun()
+                        else:
+                            st.error("Failed to delete")
+    else:
+        st.caption("No saved designs yet. Generate a design and save it.")
+
     # Check for pending question
     if workflow_state:
         pending_question = workflow_state.get("pending_question", "")
         if pending_question and not st.session_state.get("is_running", False):
-            st.markdown("---")
             st.info("💬 **Agent Question**")
             st.markdown(f"**{pending_question}**")
             
@@ -615,8 +620,6 @@ def render_design_generation_tab():
     # Generation process
     if generate_btn and user_request.strip():
         st.session_state.is_running = True
-        st.markdown("---")
-        
         with st.spinner("🔄 Running multi-agent workflow with per-component evaluation..."):
             try:
                 final_state = run_coloring_book_agent(user_request)
@@ -633,7 +636,6 @@ def render_design_generation_tab():
     # Resume workflow if waiting for user answer
     if workflow_state and workflow_state.get("status") == "waiting_for_user" and workflow_state.get("user_answer"):
         st.session_state.is_running = True
-        st.markdown("---")
         with st.spinner("🔄 Continuing workflow with your answer..."):
             try:
                 app = create_coloring_book_graph()
@@ -650,8 +652,6 @@ def render_design_generation_tab():
     
     # Display results if workflow state exists
     if workflow_state and workflow_state.get("status") == "complete":
-        st.markdown("---")
-        
         # Top Section: Progress Overview
         render_progress_overview(workflow_state)
         
@@ -665,9 +665,8 @@ def render_design_generation_tab():
 def main():
     """Main Streamlit application with multi-tab interface."""
     
-    # Header
     st.title("🎨 Coloring Book Workflow Assistant")
-    st.markdown("*Multi-stage workflow for coloring book creation*")
+    st.caption("Multi-stage workflow for coloring book creation")
     
     # Sidebar
     with st.sidebar:
@@ -682,60 +681,15 @@ def main():
             st.success("✅ API key loaded")
         
         st.markdown("---")
-        st.markdown("### 💾 Saved Designs")
-        
-        # Save current state
-        workflow_state = st.session_state.get("workflow_state")
-        if workflow_state and workflow_state.get("title"):
-            save_name = st.text_input("Save as:", value=workflow_state.get("title", ""), key="save_name_input")
-            if st.button("💾 Save Current Design", key="save_design_btn"):
-                try:
-                    filepath = save_workflow_state(workflow_state, name=save_name if save_name else None)
-                    st.success(f"✅ Design saved!")
-                    st.info(f"Saved to: `{filepath}`")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error saving: {e}")
-        
-        st.markdown("---")
-        st.markdown("### 📂 Load Previous Design")
-        
-        # List saved states
-        saved_states = list_saved_states()
-        if saved_states:
-            for state_info in saved_states[:10]:  # Show latest 10
-                with st.expander(f"📄 {state_info['title']}", expanded=False):
-                    st.caption(f"Saved: {state_info['saved_at']}")
-                    if state_info['description']:
-                        st.text(state_info['description'][:150])
-                    
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button("📂 Load", key=f"load_{state_info['name']}"):
-                            loaded_state = load_workflow_state(state_info['filepath'])
-                            if loaded_state:
-                                st.session_state.workflow_state = loaded_state
-                                st.success("✅ Design loaded!")
-                                st.rerun()
-                            else:
-                                st.error("❌ Failed to load design")
-                    with col2:
-                        if st.button("🗑️ Delete", key=f"delete_{state_info['name']}"):
-                            if delete_saved_state(state_info['filepath']):
-                                st.success("✅ Deleted!")
-                                st.rerun()
-                            else:
-                                st.error("❌ Failed to delete")
-        else:
-            st.info("No saved designs yet. Generate a design and save it!")
-        
-        st.markdown("---")
         st.markdown("### 📋 Workflow Stages")
         st.markdown("""
+        0. **Get Started** - Guide and workflow overview
         1. **Design Generation** - Create design package
         2. **Image Generation** - Upload/generate images
-        3. **Pinterest Publishing** - Publish to Pinterest
-        4. **Future Steps** - Coming soon
+        3. **Canva Design** - Create layout from images
+        4. **Pinterest Publishing** - Publish to Pinterest
+        
+        Canva and Pinterest use the same images folder.
         """)
     
     # Initialize session state
@@ -746,12 +700,16 @@ def main():
         st.session_state.is_running = False
     
     # Multi-tab interface
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab0, tab1, tab2, tab3, tab4 = st.tabs([
+        "📖 Get Started",
         "🎨 Design Generation",
         "🖼️ Image Generation",
+        "🎨 Canva Design",
         "📌 Pinterest Publishing",
-        "📄 Future Step"
     ])
+    
+    with tab0:
+        render_guide_tab()
     
     with tab1:
         render_design_generation_tab()
@@ -766,15 +724,17 @@ def main():
     with tab3:
         workflow_state = st.session_state.get("workflow_state")
         if workflow_state:
-            render_pinterest_tab(workflow_state)
+            render_canva_tab(workflow_state)
         else:
             st.info("💡 Generate a design package and upload images first.")
     
     with tab4:
-        render_placeholder_tab("Future Step")
+        workflow_state = st.session_state.get("workflow_state")
+        if workflow_state:
+            render_pinterest_tab(workflow_state)
+        else:
+            st.info("💡 Generate a design package and upload images first.")
     
-    # Footer
-    st.markdown("---")
     st.markdown(
         """
         <div style='text-align: center; color: #666;'>

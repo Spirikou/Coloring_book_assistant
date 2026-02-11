@@ -46,54 +46,60 @@ class PinterestPublishingWorkflow:
         self,
         design_state: Dict,
         images_folder: str,
-        output_folder: Optional[str] = None
+        output_folder: Optional[str] = None,
+        selected_images: Optional[list] = None
     ) -> str:
         """
         Prepare folder for Pinterest publishing.
-        
+
         Args:
             design_state: State dict with title, description, seo_keywords
             images_folder: Path to folder containing images
             output_folder: Optional custom output folder path
-            
+            selected_images: Optional list of full paths to copy. When provided, only these
+                images are copied. When None/empty, all images from folder are copied.
+
         Returns:
             Path to prepared folder
         """
-        # Create output folder with timestamp
         if output_folder is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_folder = str(self.output_base / f"publish_{timestamp}")
-        
+
         output_path = Path(output_folder)
         output_path.mkdir(parents=True, exist_ok=True)
-        
-        # Create JSON config file from design state
+
         json_config = {
             "title": design_state.get("title", ""),
             "description": design_state.get("description", ""),
             "seo_keywords": design_state.get("seo_keywords", [])
         }
-        
         json_file = output_path / "book_config.json"
         with open(json_file, "w", encoding="utf-8") as f:
             json.dump(json_config, f, indent=2, ensure_ascii=False)
-        
-        # Copy images from images folder
-        images_path = Path(images_folder)
-        if images_path.exists() and images_path.is_dir():
+
+        if selected_images and len(selected_images) > 0:
+            copied_count = 0
+            for src in selected_images:
+                p = Path(src)
+                if p.exists() and p.is_file():
+                    shutil.copy2(src, output_path / p.name)
+                    copied_count += 1
+            if copied_count == 0:
+                raise ValueError("No valid selected images found")
+        else:
+            images_path = Path(images_folder)
+            if not images_path.exists() or not images_path.is_dir():
+                raise ValueError(f"Images folder not found: {images_folder}")
             image_extensions = [".png", ".jpg", ".jpeg", ".webp"]
             copied_count = 0
-            
             for ext in image_extensions:
                 for image_file in images_path.glob(f"*{ext}"):
                     shutil.copy2(image_file, output_path / image_file.name)
                     copied_count += 1
-            
             if copied_count == 0:
                 raise ValueError(f"No images found in {images_folder}")
-        else:
-            raise ValueError(f"Images folder not found: {images_folder}")
-        
+
         return str(output_path.resolve())
     
     def publish_to_pinterest(
