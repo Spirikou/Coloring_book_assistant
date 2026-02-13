@@ -484,8 +484,8 @@ class CanvaPublisher:
             try:
                 logger.info(f"Processing image {i+1}/{len(images)}: {img.name}")
                 
-                # Navigate to current page (create if needed)
-                self._go_to_page(self.page, current_page_index)
+                # Ensure page exists (create if needed). No thumbnail clicks - they cause miss-clicks.
+                self._ensure_page_exists(current_page_index, i)
                 
                 # Upload and place the image (clicks Uploads button each time for safety)
                 logger.info(f"Uploading and placing {img.name}...")
@@ -1072,75 +1072,15 @@ class CanvaPublisher:
         except Exception as e:
             logger.error(f"Failed to write output JSON: {e}")
     
-    def _go_to_page(self, page, index: int) -> None:
+    def _ensure_page_exists(self, current_page_index: int, image_index: int) -> None:
         """
-        Navigate to page by index. Creates page if it doesn't exist.
-        Page index 0 = first page (already exists after design creation).
+        Ensure the required page exists by adding pages if needed.
+        No thumbnail clicks - avoids miss-clicking sidebar elements that break the Uploads button.
+        Canva auto-switches to the newly created page.
         """
-        # Page 0 should always exist (it's the first page created with the design)
-        if index == 0:
-            try:
-                # Try multiple selectors for page thumbnail
-                page_selectors = [
-                    f"[data-testid='page-thumbnail']:nth-child(1)",
-                    "[data-testid='page-thumbnail']:first-child",
-                    "div[data-testid*='page']:first-child",
-                    "[role='button'][aria-label*='page' i]:first-child",
-                ]
-                
-                for selector in page_selectors:
-                    try:
-                        page_thumb = page.locator(selector).first
-                        if page_thumb.is_visible(timeout=2000):
-                            page_thumb.click()
-                            page.wait_for_timeout(500)
-                            logger.debug(f"Navigated to page 1 (first page)")
-                            return
-                    except:
-                        continue
-                
-                logger.warning("Could not find first page thumbnail, but continuing...")
-                return
-            except Exception as e:
-                logger.debug(f"Error navigating to first page: {e}")
-                return
-        
-        # For pages > 0, try to navigate, create if needed
-        try:
-            page_selectors = [
-                f"[data-testid='page-thumbnail']:nth-child({index + 1})",
-                f"div[data-testid*='page']:nth-child({index + 1})",
-                f"[role='button'][aria-label*='page' i]:nth-child({index + 1})",
-            ]
-            
-            page_found = False
-            for selector in page_selectors:
-                try:
-                    page_thumb = page.locator(selector).first
-                    if page_thumb.is_visible(timeout=2000):
-                        page_thumb.click()
-                        page.wait_for_timeout(500)
-                        logger.debug(f"Navigated to existing page {index + 1}")
-                        page_found = True
-                        break
-                except:
-                    continue
-            
-            if not page_found:
-                # Page doesn't exist yet, create it
-                logger.info(f"Page {index + 1} doesn't exist yet, creating it...")
-                self._add_page()
-                # Try navigating again
-                try:
-                    page_thumb = page.locator(f"[data-testid='page-thumbnail']:nth-child({index + 1})").first
-                    if page_thumb.is_visible(timeout=3000):
-                        page_thumb.click()
-                        page.wait_for_timeout(500)
-                        logger.debug(f"Navigated to page {index + 1} after creating it")
-                except:
-                    logger.warning(f"Could not navigate to page {index + 1} after creating it")
-        except Exception as e:
-            logger.warning(f"Error in _go_to_page for index {index}: {e}")
+        if image_index > 0:
+            self._add_page()
+            self.page.wait_for_timeout(500)
     
     def _add_page(self) -> None:
         """
