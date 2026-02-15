@@ -27,8 +27,10 @@ def render_pinterest_tab(state: dict):
         state["pinterest_progress"] = {}
     if "pinterest_results" not in state:
         state["pinterest_results"] = {}
-    if "pinterest_browser_status" not in state:
-        state["pinterest_browser_status"] = {}
+    # Migrate from legacy keys; use shared browser_status (same port for Canva and Pinterest)
+    if "browser_status" not in state:
+        legacy = state.get("pinterest_browser_status") or state.get("canva_browser_status")
+        state["browser_status"] = legacy if isinstance(legacy, dict) else {}
     if "pinterest_board_name" not in state:
         state["pinterest_board_name"] = ""
     if "pinterest_folder_path" not in state:
@@ -37,18 +39,24 @@ def render_pinterest_tab(state: dict):
     if st.session_state.get("check_browser_clicked", False):
         st.session_state.check_browser_clicked = False
         browser_status = check_browser_connection()
-        state["pinterest_browser_status"] = browser_status
+        state["browser_status"] = browser_status
         st.session_state.workflow_state = state
 
-    if not state.get("pinterest_browser_status"):
+    if st.session_state.get("refresh_browser_check_pinterest", False):
+        st.session_state.refresh_browser_check_pinterest = False
         browser_status = check_browser_connection()
-        state["pinterest_browser_status"] = browser_status
+        state["browser_status"] = browser_status
+        st.session_state.workflow_state = state
+
+    if not state.get("browser_status"):
+        browser_status = check_browser_connection()
+        state["browser_status"] = browser_status
         st.session_state.workflow_state = state
 
     prerequisites = render_pinterest_combined_checks(state)
     images_folder_path = prerequisites.get("images_folder_path", state.get("images_folder_path", ""))
     image_count = prerequisites.get("image_count", 0)
-    browser_status = state.get("pinterest_browser_status", {})
+    browser_status = state.get("browser_status", {})
 
     if prerequisites["all_ready"]:
         with st.expander("⚙️ Configuration", expanded=False):

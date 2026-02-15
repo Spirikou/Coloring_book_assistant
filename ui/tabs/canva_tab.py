@@ -27,23 +27,31 @@ def render_canva_tab(state: dict):
         state["canva_progress"] = {}
     if "canva_results" not in state:
         state["canva_results"] = {}
-    if "canva_browser_status" not in state:
-        state["canva_browser_status"] = {}
+    # Migrate from legacy keys; use shared browser_status (same port for Canva and Pinterest)
+    if "browser_status" not in state:
+        legacy = state.get("canva_browser_status") or state.get("pinterest_browser_status")
+        state["browser_status"] = legacy if isinstance(legacy, dict) else {}
 
     if st.session_state.get("check_browser_canva_clicked", False):
         st.session_state.check_browser_canva_clicked = False
         browser_status = check_browser_connection()
-        state["canva_browser_status"] = browser_status
+        state["browser_status"] = browser_status
         st.session_state.workflow_state = state
 
-    if not state.get("canva_browser_status"):
+    if st.session_state.get("refresh_browser_check_canva", False):
+        st.session_state.refresh_browser_check_canva = False
         browser_status = check_browser_connection()
-        state["canva_browser_status"] = browser_status
+        state["browser_status"] = browser_status
+        st.session_state.workflow_state = state
+
+    if not state.get("browser_status"):
+        browser_status = check_browser_connection()
+        state["browser_status"] = browser_status
         st.session_state.workflow_state = state
 
     prerequisites = render_canva_combined_checks(state)
     images_folder_path = prerequisites.get("images_folder_path", state.get("images_folder_path", ""))
-    browser_status = state.get("canva_browser_status", {})
+    browser_status = state.get("browser_status", {})
 
     if prerequisites["all_ready"]:
         with st.expander("⚙️ Configuration", expanded=False):

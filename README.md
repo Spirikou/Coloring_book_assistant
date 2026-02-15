@@ -39,7 +39,7 @@ Canva and Pinterest use the same images folder. Follow the tabs in order for the
 
 4. **Run the Streamlit app**:
    ```bash
-   uv run streamlit run streamlit_app_v4.py
+   uv run streamlit run app.py
    ```
 
    Or run the CLI (design generation only):
@@ -47,24 +47,30 @@ Canva and Pinterest use the same images folder. Follow the tabs in order for the
    uv run python main.py "forest animals coloring book for adults"
    ```
 
-## 📁 Project Structure
+**Optional:** Set `CB_OUTPUT_DIR` to customize where saved designs and Pinterest publish folders are stored (default: `./output`).
+
+## Project Structure
 
 ```
 Coloring_book_assistant/
-├── streamlit_app_v4.py   # Main Streamlit app (multi-tab workflow)
+├── app.py                # Main Streamlit app (multi-tab workflow)
 ├── main.py               # CLI entry point
-├── graph.py              # LangGraph design workflow
-├── agents/design/        # Design agents (Executor, Evaluator)
+├── config.py             # Centralized paths and settings
+├── core/                 # Shared infrastructure (state, persistence)
+├── features/
+│   ├── design_generation/ # Design: agents, tools, workflow, UI
+│   └── image_generation/ # Image: monitor, image_utils, UI
 ├── workflows/
-│   ├── design/           # Design generation workflow
 │   ├── canva/            # Canva design workflow
 │   └── pinterest/        # Pinterest publishing workflow
 ├── integrations/
 │   ├── canva/            # Canva browser automation
 │   └── pinterest/        # Pinterest browser automation
-├── tools/                # Content generation tools
-├── ui/tabs/              # Streamlit tabs (Guide, Design, Images, Canva, Pinterest)
-└── utils/                # Utilities (folder monitor, doc retriever, etc.)
+├── ui/tabs/              # Streamlit tabs (Guide, Canva, Pinterest)
+├── saved_designs/        # Saved design JSON files
+├── pinterest_publish/    # Pinterest publish folders
+├── docs/                 # Project documentation
+└── utils/                # Compatibility shims
 ```
 
 ## 🛠️ Technical Details

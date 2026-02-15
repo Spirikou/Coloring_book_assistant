@@ -35,3 +35,8 @@ build/
 # Temporary files
 *.tmp
 *.temp
+
+# Generated/output
+output/
+saved_designs/
+pinterest_publish/

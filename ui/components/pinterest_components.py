@@ -2,7 +2,7 @@
 
 import streamlit as st
 from integrations.pinterest.antivirus_check import run_full_check, get_bitdefender_warning
-from ui.components.shared_checks import render_combined_checks
+from ui.components.shared_checks import render_combined_checks, BROWSER_STATUS_KEY
 
 
 def render_pinterest_combined_checks(state: dict) -> dict:
@@ -40,7 +40,7 @@ def render_prerequisites_check(state: dict) -> dict:
         image_count = 0
     
     # Browser check
-    browser_status = state.get("pinterest_browser_status", {})
+    browser_status = state.get(BROWSER_STATUS_KEY, {})
     browser_connected = browser_status.get("connected", False)
     
     checks = {

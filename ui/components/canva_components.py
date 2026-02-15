@@ -2,7 +2,7 @@
 
 import streamlit as st
 from integrations.pinterest.antivirus_check import run_full_check
-from ui.components.shared_checks import render_combined_checks
+from ui.components.shared_checks import render_combined_checks, BROWSER_STATUS_KEY
 
 
 def render_canva_combined_checks(state: dict) -> dict:
@@ -34,7 +34,7 @@ def render_canva_prerequisites_check(state: dict) -> dict:
         has_images = False
         image_count = 0
     
-    browser_status = state.get("canva_browser_status", {})
+    browser_status = state.get(BROWSER_STATUS_KEY, {})
     browser_connected = browser_status.get("connected", False)
     
     checks = {

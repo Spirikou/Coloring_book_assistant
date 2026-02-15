@@ -84,11 +84,11 @@ def _render_system_check_content(check_results: dict) -> None:
             st.markdown(f"  {rec}")
 
 
+BROWSER_STATUS_KEY = "browser_status"  # Shared by Canva and Pinterest (same port 9222)
+
+
 def _get_prerequisites_state(state: dict, tab_name: str) -> dict:
     """Get prerequisites state for canva or pinterest tab."""
-    browser_key = "canva_browser_status" if tab_name == "canva" else "pinterest_browser_status"
-    check_btn_key = "check_browser_canva_clicked" if tab_name == "canva" else "check_browser_clicked"
-
     has_title = bool(state.get("title"))
     has_description = bool(state.get("description"))
     design_generated = has_title and has_description
@@ -109,7 +109,7 @@ def _get_prerequisites_state(state: dict, tab_name: str) -> dict:
         has_images = True
         image_count = len(selected_images)
 
-    browser_status = state.get(browser_key, {})
+    browser_status = state.get(BROWSER_STATUS_KEY, {})
     browser_connected = browser_status.get("connected", False)
 
     checks = {
@@ -117,7 +117,11 @@ def _get_prerequisites_state(state: dict, tab_name: str) -> dict:
         "images_available": has_images,
         "browser_connected": browser_connected
     }
-    all_ready = checks["design_generated"] and checks["images_available"]
+    all_ready = (
+        checks["design_generated"]
+        and checks["images_available"]
+        and checks["browser_connected"]
+    )
 
     session_state_key = "check_browser_canva_clicked" if tab_name == "canva" else "check_browser_clicked"
     button_key = "check_browser_canva_btn" if tab_name == "canva" else "check_browser_btn"
@@ -187,8 +191,7 @@ def _render_prerequisites_content(state: dict, tab_name: str, prerq: dict) -> No
             if st.session_state.get(f"browser_launched_{tab_name}", False):
                 if st.button("✅ Continue", key=f"continue_{tab_name}_btn", use_container_width=True):
                     bs = check_browser_connection()
-                    state_key = "canva_browser_status" if tab_name == "canva" else "pinterest_browser_status"
-                    state[state_key] = bs
+                    state[BROWSER_STATUS_KEY] = bs
                     st.session_state.workflow_state = state
                     st.session_state[f"browser_launched_{tab_name}"] = False
                     st.rerun()
@@ -213,7 +216,7 @@ def render_combined_checks(state: dict, tab_name: str) -> dict:
     issue_count = (
         (0 if file_check["all_present"] else 1) +
         (0 if playwright_check["installed"] and not critical_playwright else 1) +
-        sum(1 for k, v in prerq["checks"].items() if not v and k != "browser_connected")
+        sum(1 for k, v in prerq["checks"].items() if not v)
     )
 
     # Status line + Refresh
@@ -228,6 +231,7 @@ def render_combined_checks(state: dict, tab_name: str) -> dict:
     with col2:
         refresh_key = f"refresh_checks_{tab_name}"
         if st.button("🔄", key=refresh_key, help="Refresh checks"):
+            st.session_state[f"refresh_browser_check_{tab_name}"] = True
             st.rerun()
 
     with st.expander("System & Prerequisites", expanded=check_results["has_issues"] or not prerq["all_ready"]):

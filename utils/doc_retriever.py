@@ -17,7 +17,7 @@ _DOC_PATHS = [
     "workflows/canva/README.md",
     "workflows/pinterest/README.md",
     "workflows/design/README.md",
-    "PINTEREST_PUBLISHER_COMPARISON.md",
+    "docs/PINTEREST_PUBLISHER_COMPARISON.md",
     "tests/integrations/pinterest/README.md",
 ]
 

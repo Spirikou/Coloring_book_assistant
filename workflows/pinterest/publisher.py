@@ -8,6 +8,7 @@ from typing import Dict, Callable, Optional
 from datetime import datetime
 
 from integrations.pinterest.adapter import publish_pins_with_progress
+from config import PINTEREST_PUBLISH_DIR
 
 
 def _is_streamlit_context() -> bool:
@@ -40,7 +41,8 @@ class PinterestPublishingWorkflow:
     """Manages the Pinterest publishing process."""
     
     def __init__(self):
-        self.output_base = Path("./pinterest_publish")
+        self.output_base = PINTEREST_PUBLISH_DIR
+        self.output_base.mkdir(parents=True, exist_ok=True)
     
     def prepare_publishing_folder(
         self,

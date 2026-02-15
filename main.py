@@ -9,7 +9,7 @@ Run with: uv run python main.py
 """
 
 import sys
-from graph import run_coloring_book_agent
+from features.design_generation.workflow import run_coloring_book_agent
 
 
 def main():
