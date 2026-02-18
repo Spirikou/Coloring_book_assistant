@@ -36,34 +36,30 @@ def render_guide_tab():
     with col4:
         st.markdown("**4. Pinterest Publishing**")
         st.caption("Published pins")
-    st.caption("→ Workflow flows left to right. Complete each step before moving to the next.")
+    st.caption("Workflow flows left to right. Complete each step before moving to the next.")
 
     steps = [
         {
             "title": "1. Design Generation",
-            "icon": "🎨",
             "body": "Describe your idea (e.g. forest animals for adults with mandala patterns). The AI researches an artistic style, generates a marketable title and description (~200 words), 50 MidJourney prompts for coloring pages, and 10 SEO keywords. Each component is evaluated for quality and refined up to 5 times. You can download the full report as JSON. Go to the Design Generation tab, enter your idea, and run the agent.",
         },
         {
             "title": "2. Image Generation",
-            "icon": "🖼️",
             "body": "Use the MidJourney prompts in the Design tab to generate images (e.g. in MidJourney or another tool). Set the folder path in this tab to where your images are saved. Select which images to include in the workflow. Empty selection means all images are used. Click checkboxes on images to select or deselect.",
         },
         {
             "title": "3. Canva Design",
-            "icon": "🎨",
             "body": "The app creates a multi-page Canva layout: one page per image with margins. Requires a browser started with --remote-debugging-port=9222. Log into Canva first, then run the workflow. The app will create the design and upload images.",
         },
         {
             "title": "4. Pinterest Publishing",
-            "icon": "📌",
             "body": "Publishes one pin per image to Pinterest with title, description, and keywords from the design package. Requires a browser with remote debugging. Log into Pinterest first, then run the workflow.",
         },
     ]
 
     for step in steps:
-        with st.expander(f"{step['icon']} {step['title']}", expanded=False):
+        with st.expander(f"{step['title']}", expanded=False):
             st.markdown(step["body"])
 
-    with st.expander("💬 Have questions? Ask about this app", expanded=False):
+    with st.expander("Have questions? Ask about this app", expanded=False):
         render_guide_chat()

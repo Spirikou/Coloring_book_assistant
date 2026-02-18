@@ -17,7 +17,7 @@ def render_prerequisites_check(state: dict) -> dict:
     Returns:
         dict with check results
     """
-    st.subheader("📋 Prerequisites Checklist")
+    st.subheader("Prerequisites Checklist")
     
     # Check design package
     has_title = bool(state.get("title"))
@@ -55,36 +55,36 @@ def render_prerequisites_check(state: dict) -> dict:
     with col1:
         # Design package status card
         if design_generated:
-            st.success("✅ **Design Package**\n\nTitle and description generated")
+            st.success("✓ **Design Package**\n\nTitle and description generated")
         else:
-            st.error("❌ **Design Package**\n\nMissing: " + ("title" if not has_title else "") + (", description" if not has_description else ""))
+            st.error("✗ **Design Package**\n\nMissing: " + ("title" if not has_title else "") + (", description" if not has_description else ""))
     
     with col2:
         # Images status card
         if has_images:
             expected_count = len(state.get("midjourney_prompts", []))
             if expected_count > 0:
-                st.success(f"✅ **Images Available**\n\n{image_count} images found" + (f" (expected {expected_count})" if expected_count != image_count else ""))
+                st.success(f"✓ **Images Available**\n\n{image_count} images found" + (f" (expected {expected_count})" if expected_count != image_count else ""))
             else:
-                st.success(f"✅ **Images Available**\n\n{image_count} images found")
+                st.success(f"✓ **Images Available**\n\n{image_count} images found")
         elif images_ready:
-            st.success(f"✅ **Images Ready**\n\n{len(uploaded_images)} images marked as ready")
+            st.success(f"✓ **Images Ready**\n\n{len(uploaded_images)} images marked as ready")
         else:
             if images_folder_path:
-                st.warning(f"⚠️ **Images**\n\nNo images found in folder:\n`{images_folder_path}`")
+                st.warning(f"○ **Images**\n\nNo images found in folder:\n`{images_folder_path}`")
             else:
-                st.warning("⚠️ **Images**\n\nNo images folder set. Go to Image Generation tab first.")
+                st.warning("○ **Images**\n\nNo images folder set. Go to Image Generation tab first.")
     
     with col3:
         # Browser status card
         if browser_connected:
             port = browser_status.get("port", "N/A")
-            st.success(f"✅ **Browser Connected**\n\nPort: {port}")
+            st.success(f"✓ **Browser Connected**\n\nPort: {port}")
         else:
-            st.warning("⚠️ **Browser**\n\nNot connected. Click 'Check Browser' below.")
+            st.warning("○ **Browser**\n\nNot connected. Click 'Check Browser' below.")
     
     # Browser check button
-    if st.button("🔍 Check Browser Connection", key="check_browser_btn", use_container_width=True):
+    if st.button("Check Browser Connection", key="check_browser_btn", use_container_width=True):
         st.session_state["check_browser_clicked"] = True
         st.rerun()
     
@@ -101,7 +101,7 @@ def render_prerequisites_check(state: dict) -> dict:
 
 def render_configuration_section(state: dict) -> dict:
     """Render configuration inputs."""
-    st.subheader("⚙️ Configuration")
+    st.subheader("Configuration")
     
     board_name = st.text_input(
         "Pinterest Board Name",
@@ -118,11 +118,11 @@ def render_configuration_section(state: dict) -> dict:
         image_count = len(folder_images)
         
         if image_count > 0:
-            st.success(f"📁 **Images Folder:** `{images_folder}`\n\n✅ {image_count} images found")
+            st.success(f"**Images Folder:** `{images_folder}`\n\n✓ {image_count} images found")
         else:
-            st.warning(f"📁 **Images Folder:** `{images_folder}`\n\n⚠️ No images found in this folder")
+            st.warning(f"**Images Folder:** `{images_folder}`\n\n○ No images found in this folder")
     else:
-        st.warning("⚠️ No images folder set. Please set the folder path in the Image Generation tab first.")
+        st.warning("No images folder set. Please set the folder path in the Image Generation tab first.")
     
     return {
         "board_name": board_name,
@@ -141,7 +141,7 @@ def render_progress_display(progress: dict):
     status = progress.get("status", "")
     message = progress.get("message", "")
     
-    st.subheader("📊 Publishing Progress")
+    st.subheader("Publishing Progress")
     
     if total > 0:
         progress_pct = current / total
@@ -152,11 +152,11 @@ def render_progress_display(progress: dict):
     
     # Status indicator
     if status == "completed":
-        st.success("✅ Publishing completed!")
+        st.success("✓ Publishing completed!")
     elif status == "failed":
-        st.error("❌ Publishing failed")
+        st.error("✗ Publishing failed")
     elif status == "in_progress":
-        st.info("🔄 Publishing in progress...")
+        st.info("Publishing in progress...")
 
 
 def render_results_summary(results: dict):
@@ -164,7 +164,7 @@ def render_results_summary(results: dict):
     if not results:
         return
     
-    st.subheader("📈 Results Summary")
+    st.subheader("Results Summary")
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -190,7 +190,7 @@ def render_results_summary(results: dict):
     # Errors if any
     errors = results.get("errors", [])
     if errors:
-        with st.expander("⚠️ Errors", expanded=True):
+        with st.expander("Errors", expanded=True):
             for error in errors:
                 st.error(error)
 
@@ -202,7 +202,7 @@ def render_antivirus_check() -> dict:
     Returns:
         dict with check results
     """
-    st.subheader("🛡️ System Check")
+    st.subheader("System Check")
     
     # Run checks
     check_results = run_full_check()
@@ -210,7 +210,7 @@ def render_antivirus_check() -> dict:
     # Show Bitdefender warning
     warning = check_results["bitdefender_warning"]
     
-    with st.expander("⚠️ Bitdefender Antivirus Warning", expanded=check_results["has_issues"]):
+    with st.expander("Bitdefender Antivirus Warning", expanded=check_results["has_issues"]):
         st.warning(f"**{warning['title']}**")
         st.info(warning["message"])
         
@@ -225,7 +225,7 @@ def render_antivirus_check() -> dict:
     # Show file check results
     file_check = check_results["file_check"]
     if not file_check["all_present"]:
-        st.error(f"❌ **Missing Files Detected** ({file_check['total_missing']} of {file_check['total_checked']} files)")
+        st.error(f"✗ **Missing Files Detected** ({file_check['total_missing']} of {file_check['total_checked']} files)")
         
         st.markdown("**Missing files:**")
         for file_name in file_check["missing_files"]:
@@ -234,12 +234,12 @@ def render_antivirus_check() -> dict:
         
         st.warning("**Action Required:** Check Bitdefender's quarantine and restore deleted files, or reinstall the project.")
     else:
-        st.success(f"✅ **All Critical Files Present** ({file_check['total_checked']} files checked)")
+        st.success(f"✓ **All Critical Files Present** ({file_check['total_checked']} files checked)")
     
     # Show Playwright check
     playwright_check = check_results["playwright_check"]
     if not playwright_check["installed"]:
-        st.error("❌ **Playwright Not Installed**")
+        st.error("✗ **Playwright Not Installed**")
         st.info("Run: `uv sync` or `pip install playwright`")
     elif len(playwright_check["issues"]) > 0:
         # Separate critical vs informational issues
@@ -248,26 +248,25 @@ def render_antivirus_check() -> dict:
         info_issues = [issue for issue in playwright_check["issues"] if issue not in critical_issues]
         
         if critical_issues:
-            st.error("❌ **Playwright Critical Issues**")
+            st.error("✗ **Playwright Critical Issues**")
             for issue in critical_issues:
                 st.error(f"  - {issue}")
             st.info("**Fix:** Run `uv sync` or `pip install playwright`")
         elif info_issues:
-            st.info("ℹ️ **Playwright Note**")
+            st.info("**Playwright Note**")
             for issue in info_issues:
                 st.info(f"  - {issue}")
-            st.caption("ℹ️ This is informational - browser automation will use your existing browser (connect_existing=True)")
+            st.caption("This is informational - browser automation will use your existing browser (connect_existing=True)")
         else:
-            st.success("✅ **Playwright Installed**")
+            st.success("✓ **Playwright Installed**")
     else:
-        st.success("✅ **Playwright Installed**")
-        st.caption("ℹ️ Using existing browser connection (browser binaries not required)")
+        st.success("✓ **Playwright Installed**")
+        st.caption("Using existing browser connection (browser binaries not required)")
     
     # Show recommendations
     if check_results["recommendations"]:
-        st.markdown("**📋 Recommendations:**")
+        st.markdown("**Recommendations:**")
         for rec in check_results["recommendations"]:
             st.markdown(f"  {rec}")
     
     return check_results
-

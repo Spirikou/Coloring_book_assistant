@@ -18,12 +18,12 @@ def _render_checks_summary(check_results: dict, prerq: dict) -> None:
     if playwright_check["installed"]:
         summary_items.append("• **Playwright:** Python package OK, sync_api imported")
     else:
-        summary_items.append("• **Playwright:** ❌ Not installed or import failed")
+        summary_items.append("• **Playwright:** ✗ Not installed or import failed")
     if checks["browser_connected"]:
         port = browser_status.get("port", "N/A")
-        summary_items.append(f"• **Browser:** ✅ Connected on port {port}")
+        summary_items.append(f"• **Browser:** ✓ Connected on port {port}")
     else:
-        summary_items.append("• **Browser:** ⚠️ Not connected (port 9222)")
+        summary_items.append("• **Browser:** Not connected (port 9222)")
     st.caption("\n".join(summary_items))
 
 
@@ -33,7 +33,7 @@ def _render_system_check_content(check_results: dict) -> None:
     playwright_check = check_results["playwright_check"]
     warning = check_results["bitdefender_warning"]
 
-    with st.expander("⚠️ Bitdefender Antivirus Warning", expanded=check_results["has_issues"]):
+    with st.expander("Bitdefender Antivirus Warning", expanded=check_results["has_issues"]):
         st.warning(f"**{warning['title']}**")
         st.info(warning["message"])
         st.markdown("**Recommendations:**")
@@ -45,22 +45,22 @@ def _render_system_check_content(check_results: dict) -> None:
 
     st.markdown("**File check**")
     if not file_check["all_present"]:
-        st.error(f"❌ Missing {file_check['total_missing']} of {file_check['total_checked']} files")
+        st.error(f"✗ Missing {file_check['total_missing']} of {file_check['total_checked']} files")
         for file_name in file_check["missing_files"]:
             file_info = file_check["file_status"].get(file_name, {})
             path = file_info.get("path", "unknown")
             st.error(f"  - `{file_name}` (expected: `{path}`)")
         st.warning("Check Bitdefender quarantine and restore deleted files.")
     else:
-        st.success(f"✅ All {file_check['total_checked']} critical files present")
+        st.success(f"✓ All {file_check['total_checked']} critical files present")
         with st.expander("Files checked (paths)", expanded=False):
             for name, info in file_check["file_status"].items():
-                status = "✅" if info.get("exists") else "❌"
+                status = "✓" if info.get("exists") else "✗"
                 st.text(f"  {status} {name}: {info.get('path', '')}")
 
     st.markdown("**Playwright**")
     if not playwright_check["installed"]:
-        st.error("❌ Playwright not installed")
+        st.error("✗ Playwright not installed")
         st.info("Run: `uv sync` or `pip install playwright`")
         st.caption("Checks: Python package import, sync_api module")
     else:
@@ -69,12 +69,12 @@ def _render_system_check_content(check_results: dict) -> None:
             if "importing" in i.lower() or "not installed" in i.lower()
         ]
         if critical_issues:
-            st.error("❌ Playwright issues")
+            st.error("✗ Playwright issues")
             for issue in critical_issues:
                 st.error(f"  - {issue}")
             st.info("**Fix:** Run `uv sync` or `pip install playwright`")
         else:
-            st.success("✅ Playwright installed (sync_api imported)")
+            st.success("✓ Playwright installed (sync_api imported)")
             if playwright_check.get("browsers_available"):
                 st.caption(f"  Checked: {', '.join(playwright_check['browsers_available'])} — browser binaries optional (connects to existing browser)")
 
@@ -150,35 +150,35 @@ def _render_prerequisites_content(state: dict, tab_name: str, prerq: dict) -> No
     col1, col2, col3 = st.columns(3)
     with col1:
         if checks["design_generated"]:
-            st.success("✅ Design Package")
+            st.success("✓ Design Package")
         else:
-            st.error("❌ Design Package")
+            st.error("✗ Design Package")
     with col2:
         if checks["images_available"]:
-            st.success(f"✅ Images ({prerq['image_count']})")
+            st.success(f"✓ Images ({prerq['image_count']})")
         else:
-            st.warning("⚠️ Images")
+            st.warning("○ Images")
     with col3:
         if checks["browser_connected"]:
             port = browser_status.get("port", "N/A")
-            st.success(f"✅ Browser (port {port})")
+            st.success(f"✓ Browser (port {port})")
         else:
-            st.warning("⚠️ Browser")
+            st.warning("○ Browser")
 
     st.markdown("**Browser connection**")
     if checks["browser_connected"]:
         port = browser_status.get("port", "N/A")
-        st.success(f"✅ Browser connected on port {port}")
+        st.success(f"✓ Browser connected on port {port}")
         st.caption("Check: Remote debugging port active. Start browser with: `--remote-debugging-port=9222`")
     else:
         st.warning("Browser not connected. Launch browser with remote debugging, then log in.")
         st.caption("Check: No browser detected on port 9222. Use Launch Browser or start manually with remote debugging.")
         col_a, col_b = st.columns(2)
         with col_a:
-            if st.button("🔍 Check Browser", key=button_key, use_container_width=True):
+            if st.button("Check Browser", key=button_key, use_container_width=True):
                 st.session_state[session_state_key] = True
                 st.rerun()
-            if st.button("🚀 Launch Browser", key=launch_key, use_container_width=True):
+            if st.button("Launch Browser", key=launch_key, use_container_width=True):
                 with st.spinner("Launching..."):
                     result = launch_browser_with_debugging()
                     if result.get("success"):
@@ -189,7 +189,7 @@ def _render_prerequisites_content(state: dict, tab_name: str, prerq: dict) -> No
                         st.error(result["message"])
         with col_b:
             if st.session_state.get(f"browser_launched_{tab_name}", False):
-                if st.button("✅ Continue", key=f"continue_{tab_name}_btn", use_container_width=True):
+                if st.button("Continue", key=f"continue_{tab_name}_btn", use_container_width=True):
                     bs = check_browser_connection()
                     state[BROWSER_STATUS_KEY] = bs
                     st.session_state.workflow_state = state
@@ -223,14 +223,14 @@ def render_combined_checks(state: dict, tab_name: str) -> dict:
     col1, col2 = st.columns([4, 1])
     with col1:
         if issue_count == 0 and prerq["all_ready"]:
-            st.success("✅ Ready")
+            st.success("✓ Ready")
         elif issue_count > 0:
-            st.warning(f"⚠️ {issue_count} issue(s) – expand for details")
+            st.warning(f"{issue_count} issue(s) – expand for details")
         else:
             st.info("Complete prerequisites below")
     with col2:
         refresh_key = f"refresh_checks_{tab_name}"
-        if st.button("🔄", key=refresh_key, help="Refresh checks"):
+        if st.button("Refresh", key=refresh_key, help="Refresh checks"):
             st.session_state[f"refresh_browser_check_{tab_name}"] = True
             st.rerun()
 

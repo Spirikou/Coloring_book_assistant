@@ -18,17 +18,17 @@ def render_attempt(attempt: dict, attempt_num: int, component_type: str):
     passed = evaluation.get("passed", False) or score >= 80
 
     if score >= 80:
-        icon = "✅"
+        icon = "✓"
     elif score >= 60:
-        icon = "🟡"
+        icon = "~"
     else:
-        icon = "❌"
+        icon = "✗"
 
     with st.expander(f"Attempt {attempt_num} - {icon} Score: {score}/100", expanded=(not passed)):
         col1, col2 = st.columns([1, 1])
 
         with col1:
-            st.markdown("### 📝 Generated Content")
+            st.markdown("### Generated Content")
 
             if component_type == "title":
                 title = content.get("title", "") if isinstance(content, dict) else ""
@@ -61,7 +61,7 @@ def render_attempt(attempt: dict, attempt_num: int, component_type: str):
                     st.write(keyword_str)
 
         with col2:
-            st.markdown("### 🔍 Evaluator Assessment")
+            st.markdown("### Evaluator Assessment")
 
             st.metric("Quality Score", f"{score}/100",
                      delta="PASSED" if passed else "NEEDS IMPROVEMENT",
@@ -81,9 +81,9 @@ def render_attempt(attempt: dict, attempt_num: int, component_type: str):
                     issue_text = issue.get("issue", "No description")
                     suggestion = issue.get("suggestion", "")
 
-                    severity_icon = {"CRITICAL": "🔴", "MAJOR": "🟠", "MINOR": "🟡"}.get(severity, "⚪")
+                    severity_marker = {"CRITICAL": "●", "MAJOR": "●", "MINOR": "○"}.get(severity, "○")
 
-                    st.markdown(f"{severity_icon} **[{severity}]** {issue_text}")
+                    st.markdown(f"{severity_marker} **[{severity}]** {issue_text}")
                     if suggestion:
                         st.markdown(f"   → *Fix: {suggestion}*")
             else:
@@ -94,7 +94,7 @@ def render_attempt(attempt: dict, attempt_num: int, component_type: str):
                 st.markdown(f"**Summary:** {summary}")
 
         if feedback and not passed:
-            st.markdown("**📤 Feedback sent to Executor for next attempt:**")
+            st.markdown("**Feedback sent to Executor for next attempt:**")
             st.text_area("Feedback content", feedback, height=100, disabled=True, label_visibility="collapsed", key=f"feedback_{component_type}_{attempt_num}")
 
 
@@ -107,17 +107,17 @@ def render_theme_attempt(attempt: dict, attempt_num: int):
     passed = evaluation.get("passed", False) or score >= 80
 
     if score >= 80:
-        icon = "✅"
+        icon = "✓"
     elif score >= 60:
-        icon = "🟡"
+        icon = "~"
     else:
-        icon = "❌"
+        icon = "✗"
 
     with st.expander(f"Attempt {attempt_num} - {icon} Creativity Score: {score}/100", expanded=(not passed)):
         col1, col2 = st.columns([1, 1])
 
         with col1:
-            st.markdown("### 🎨 Theme & Style Development")
+            st.markdown("### Theme & Style Development")
 
             if isinstance(content, dict):
                 st.markdown(f"**Expanded Theme:** {content.get('expanded_theme', 'N/A')}")
@@ -125,19 +125,19 @@ def render_theme_attempt(attempt: dict, attempt_num: int):
                 st.markdown(f"**Signature Artist:** {content.get('signature_artist', 'N/A')}")
 
         with col2:
-            st.markdown("### 🔍 Creativity Assessment")
+            st.markdown("### Creativity Assessment")
             st.metric("Creativity Score", f"{score}/100",
                      delta="PASSED" if passed else "NEEDS IMPROVEMENT",
                      delta_color="normal" if passed else "inverse")
 
         if feedback and not passed:
-            st.markdown("**📤 Feedback for refinement:**")
+            st.markdown("**Feedback for refinement:**")
             st.text_area("Feedback for refinement", feedback[:500], height=80, disabled=True, label_visibility="collapsed", key=f"feedback_theme_{attempt_num}")
 
 
 def render_component_section(title: str, attempts: list, component_type: str, final_score: int, passed: bool):
     """Render a complete component section with all attempts."""
-    status_icon = "✅" if passed else "❌"
+    status_icon = "✓" if passed else "✗"
 
     st.markdown(f"## {title} {status_icon}")
     st.markdown(f"**Final Score:** {final_score}/100 | **Attempts:** {len(attempts)} | **Status:** {'PASSED' if passed else 'FAILED'}")
@@ -155,7 +155,7 @@ def render_component_section(title: str, attempts: list, component_type: str, fi
 
 def render_progress_overview(state: dict):
     """Render high-level progress overview with real-time status."""
-    st.markdown("### 📊 Workflow Progress")
+    st.markdown("### Workflow Progress")
 
     theme_status = state.get("theme_status", "pending")
     title_status = state.get("title_status", "pending")
@@ -165,15 +165,15 @@ def render_progress_overview(state: dict):
     def get_status_display(status: str, score: int = 0, passed: bool = False):
         if status == "completed":
             if passed or score >= 80:
-                return "✅", "Completed", "normal"
+                return "✓", "Completed", "normal"
             else:
-                return "⚠️", "Completed (Low Score)", "off"
+                return "!", "Completed (Low Score)", "off"
         elif status == "in_progress":
-            return "🔄", "In Progress", "normal"
+            return "...", "In Progress", "normal"
         elif status == "failed":
-            return "❌", "Failed", "inverse"
+            return "✗", "Failed", "inverse"
         else:
-            return "⏳", "Pending", "off"
+            return "○", "Pending", "off"
 
     col1, col2, col3, col4 = st.columns(4)
 
@@ -240,12 +240,12 @@ def render_progress_overview(state: dict):
 
 def render_final_results_compact(state: dict, key_prefix: str = ""):
     """Render compact final results display with editable fields and rerun controls."""
-    st.markdown("### ✨ Generated Design Package")
-    with st.expander("🔄 Regenerate", expanded=False):
+    st.markdown("### Generated Design Package")
+    with st.expander("Regenerate", expanded=False):
         st.caption("Modify and regenerate parts of this design.")
         
         # Examples shown above the text field
-        st.markdown("""**💡 Example instructions:**
+        st.markdown("""**Example instructions:**
 - *"Make the title more playful and fun"*
 - *"Change art style to Pop manga"* or *"Switch to watercolor style"*
 - *"Add more fantasy/whimsical elements"*
@@ -265,7 +265,7 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
         # All buttons on the same line
         col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
-            if st.button("🔄 Title", key=f"{key_prefix}rerun_title_btn"):
+            if st.button("Title", key=f"{key_prefix}rerun_title_btn"):
                 with st.spinner("Regenerating title & description..."):
                     try:
                         mods = {"regenerate": ["title"]}
@@ -278,7 +278,7 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
                     except Exception as e:
                         st.error(str(e))
         with col2:
-            if st.button("🔄 Prompts", key=f"{key_prefix}rerun_prompts_btn"):
+            if st.button("Prompts", key=f"{key_prefix}rerun_prompts_btn"):
                 with st.spinner("Regenerating prompts..."):
                     try:
                         mods = {"regenerate": ["prompts"]}
@@ -291,7 +291,7 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
                     except Exception as e:
                         st.error(str(e))
         with col3:
-            if st.button("🔄 Keywords", key=f"{key_prefix}rerun_keywords_btn"):
+            if st.button("Keywords", key=f"{key_prefix}rerun_keywords_btn"):
                 with st.spinner("Regenerating keywords..."):
                     try:
                         mods = {"regenerate": ["keywords"]}
@@ -304,7 +304,7 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
                     except Exception as e:
                         st.error(str(e))
         with col4:
-            if st.button("🔄 All", key=f"{key_prefix}rerun_all_btn"):
+            if st.button("All", key=f"{key_prefix}rerun_all_btn"):
                 with st.spinner("Regenerating all..."):
                     try:
                         mods = {"regenerate": ["title", "prompts", "keywords"]}
@@ -317,7 +317,7 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
                     except Exception as e:
                         st.error(str(e))
         with col5:
-            if st.button("🔁 Full Rerun", key=f"{key_prefix}rerun_full_btn"):
+            if st.button("Full Rerun", key=f"{key_prefix}rerun_full_btn"):
                 with st.spinner("Full rerun from concept..."):
                     try:
                         concept = state.get("concept_source") or state.get("concept")
@@ -333,7 +333,7 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
                             st.rerun()
                     except Exception as e:
                         st.error(str(e))
-    with st.expander("✏️ Edit and Save", expanded=False):
+    with st.expander("Edit and Save", expanded=False):
         st.caption("Modify the design below and click Save to persist changes.")
         edited_title = st.text_input("Title", value=state.get("title", ""), key="edit_title", max_chars=100)
         edited_desc = st.text_area("Description", value=state.get("description", ""), key="edit_desc", height=150)
@@ -347,7 +347,7 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
         state["description"] = edited_desc
         state["seo_keywords"] = [k.strip() for k in edited_keywords.split("\n") if k.strip()]
         st.session_state.workflow_state = state
-        if st.button("💾 Save changes", key="save_edits_btn"):
+        if st.button("Save changes", key="save_edits_btn"):
             if not edited_title.strip():
                 st.warning("Please enter a title before saving.")
             elif not edited_desc.strip():
@@ -368,7 +368,7 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
     # Theme & Artistic Style section (editable, before description)
     expanded_theme = state.get("expanded_theme", {})
     if expanded_theme:
-        with st.expander("🎨 Theme & Artistic Style", expanded=False):
+        with st.expander("Theme & Artistic Style", expanded=False):
             col1, col2 = st.columns(2)
             with col1:
                 edited_style = st.text_input(
@@ -385,32 +385,34 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
                 edited_angle = st.text_input(
                     "Unique Angle",
                     value=expanded_theme.get('unique_angle', ''),
-                    key=f"{key_prefix}edit_unique_angle"
+                    key=f"{key_prefix}edit_unique_angle",
+                    disabled=True
                 )
                 edited_audience = st.text_input(
                     "Target Audience",
                     value=expanded_theme.get('target_audience', ''),
-                    key=f"{key_prefix}edit_target_audience"
+                    key=f"{key_prefix}edit_target_audience",
+                    disabled=True
                 )
-            # Update state with edited values
+            # Update state with edited values (unique_angle and target_audience stay from expanded_theme)
             if "expanded_theme" not in state:
                 state["expanded_theme"] = {}
             state["expanded_theme"]["artistic_style"] = edited_style
             state["expanded_theme"]["signature_artist"] = edited_artist
-            state["expanded_theme"]["unique_angle"] = edited_angle
-            state["expanded_theme"]["target_audience"] = edited_audience
+            state["expanded_theme"]["unique_angle"] = expanded_theme.get('unique_angle', '')
+            state["expanded_theme"]["target_audience"] = expanded_theme.get('target_audience', '')
     
     # Description section (after theme)
     if description:
-        with st.expander("📝 Description", expanded=False):
+        with st.expander("Description", expanded=False):
             st.write(description)
 
-    st.markdown("### 📦 Content Details")
+    st.markdown("### Content Details")
 
     if expanded_theme:
-        tab1, tab2, tab3, tab4 = st.tabs(["📖 Title & Description", "🎨 Prompts", "🔍 Keywords", "📥 Download"])
+        tab1, tab2, tab3, tab4 = st.tabs(["Title & Description", "Prompts", "Keywords", "Download"])
     else:
-        tab1, tab2, tab3 = st.tabs(["🎨 Prompts", "🔍 Keywords", "📥 Download"])
+        tab1, tab2, tab3 = st.tabs(["Prompts", "Keywords", "Download"])
 
     if expanded_theme:
         with tab1:
@@ -421,16 +423,15 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
     prompts_tab = tab2 if expanded_theme else tab1
     with prompts_tab:
         prompts = state.get("midjourney_prompts", [])
-        st.markdown(f"**{len(prompts)} MidJourney Prompts:**")
+        st.markdown(f"**{len(prompts)} MidJourney Prompts**")
+        st.caption("Read-only. Use Edit and Save above to modify prompts.")
 
-        search = st.text_input("🔍 Filter prompts", key="prompt_filter")
+        search = st.text_input("Filter prompts", key="prompt_filter")
         filtered = [p for p in prompts if search.lower() in p.lower()] if search else prompts
 
-        for i, p in enumerate(filtered[:10], 1):
-            with st.expander(f"Prompt {i}"):
-                st.code(p, language="text")
-        if len(filtered) > 10:
-            st.caption(f"... and {len(filtered) - 10} more prompts")
+        for i, p in enumerate(filtered, 1):
+            st.markdown(f"**Prompt {i}**")
+            st.code(p, language="text")
 
     keywords_tab = tab3 if expanded_theme else tab2
     with keywords_tab:
@@ -461,7 +462,7 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
         }
 
         st.download_button(
-            "📥 Download Full Report (JSON)",
+            "Download Full Report (JSON)",
             data=json.dumps(report, indent=2),
             file_name="coloring_book_report.json",
             mime="application/json"
@@ -472,14 +473,14 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
 
 def render_attempt_history_collapsed(state: dict):
     """Render collapsed attempt history at bottom."""
-    with st.expander("🔍 View Detailed Attempt History", expanded=False):
+    with st.expander("View Detailed Attempt History", expanded=False):
         st.markdown("### Per-Component Attempt History")
         st.markdown("*Review each attempt to verify evaluator quality*")
 
         theme_attempts = state.get("theme_attempts", [])
         if theme_attempts:
             render_component_section(
-                "🎨 Theme Expansion & Research",
+                "Theme Expansion & Research",
                 theme_attempts,
                 "theme",
                 state.get("theme_score", 0),
@@ -487,7 +488,7 @@ def render_attempt_history_collapsed(state: dict):
             )
 
         render_component_section(
-            "📖 Title & Description",
+            "Title & Description",
             state.get("title_attempts", []),
             "title",
             state.get("title_score", 0),
@@ -495,7 +496,7 @@ def render_attempt_history_collapsed(state: dict):
         )
 
         render_component_section(
-            "🎨 MidJourney Prompts",
+            "MidJourney Prompts",
             state.get("prompts_attempts", []),
             "prompts",
             state.get("prompts_score", 0),
@@ -503,7 +504,7 @@ def render_attempt_history_collapsed(state: dict):
         )
 
         render_component_section(
-            "🔍 SEO Keywords",
+            "SEO Keywords",
             state.get("keywords_attempts", []),
             "keywords",
             state.get("keywords_score", 0),
@@ -534,7 +535,7 @@ def _normalize_concept(theme: str, style: str, variations: list = None) -> dict:
 
 def render_concept_research_section():
     """Render the preliminary concept research section with variations and mix-and-match."""
-    st.markdown("### 🔬 Preliminary Concept Research")
+    st.markdown("### Preliminary Concept Research")
     st.caption("Enter an idea to get 5 creative variations. Mix and match to create up to 3 concepts for design generation.")
 
     if "concept_variations" not in st.session_state:
@@ -550,7 +551,7 @@ def render_concept_research_section():
         key="concept_idea_input",
     )
 
-    if st.button("✨ Generate Concept Variations", key="gen_variations_btn", disabled=st.session_state.get("is_running", False)):
+    if st.button("Generate Concept Variations", key="gen_variations_btn", disabled=st.session_state.get("is_running", False)):
         if idea_input.strip():
             with st.spinner("Generating 5 creative variations..."):
                 try:
@@ -591,7 +592,7 @@ def render_concept_research_section():
         with col2:
             sel_style = st.selectbox("Art Style", options=styles if styles else [""], key="mix_style")
 
-        if st.button("➕ Add Custom Concept", key="add_concept_btn"):
+        if st.button("Add Custom Concept", key="add_concept_btn"):
             if sel_theme and sel_style:
                 concept = _normalize_concept(sel_theme, sel_style, variations)
                 if len(st.session_state.selected_concepts) < 3:
@@ -608,7 +609,7 @@ def render_concept_research_section():
             for idx, c in enumerate(selected):
                 with st.expander(f"Concept {idx + 1}: {c.get('theme', '')} | {c.get('style', '')}", expanded=False):
                     st.caption(c.get("unique_angle", ""))
-                    if st.button("🗑️ Remove", key=f"remove_concept_{idx}"):
+                    if st.button("Remove", key=f"remove_concept_{idx}"):
                         st.session_state.selected_concepts = [x for i, x in enumerate(selected) if i != idx]
                         st.rerun()
 
@@ -617,7 +618,7 @@ def render_concept_research_section():
 
 def render_design_generation_tab():
     """Render the Design Generation tab with all three sections."""
-    st.markdown("## 🎨 Design Generation")
+    st.markdown("## Design Generation")
 
     if "concept_variations" not in st.session_state:
         st.session_state.concept_variations = []
@@ -633,10 +634,10 @@ def render_design_generation_tab():
 
     if selected_concepts:
         st.markdown("---")
-        st.subheader("🚀 Generate Designs for Selected Concepts")
+        st.subheader("Generate Designs for Selected Concepts")
         st.caption("Generate a full design package (title, description, prompts, keywords) for each concept.")
         n_concepts = len(selected_concepts)
-        if st.button(f"🎨 Generate All {n_concepts} Designs", type="primary", key="gen_all_btn", disabled=st.session_state.get("is_running", False)):
+        if st.button(f"Generate All {n_concepts} Designs", type="primary", key="gen_all_btn", disabled=st.session_state.get("is_running", False)):
             st.session_state.is_running = True
             designs = []
             for idx, concept in enumerate(selected_concepts):
@@ -662,11 +663,11 @@ def render_design_generation_tab():
                     st.caption(f"{len(design.get('midjourney_prompts', []))} prompts | {len(design.get('seo_keywords', []))} keywords")
                     col_a, col_b = st.columns(2)
                     with col_a:
-                        if st.button("📌 Use this design", key=f"use_design_{idx}"):
+                        if st.button("Use this design", key=f"use_design_{idx}"):
                             st.session_state.workflow_state = design
                             st.rerun()
                     with col_b:
-                        if st.button("🔄 Regenerate", key=f"regen_concept_{idx}"):
+                        if st.button("Regenerate", key=f"regen_concept_{idx}"):
                             st.session_state.is_running = True
                             with st.spinner("Regenerating..."):
                                 try:
@@ -701,7 +702,7 @@ def render_design_generation_tab():
                                 st.session_state.is_running = False
 
     st.markdown("---")
-    st.subheader("📝 Or Describe Your Coloring Book (Direct)")
+    st.subheader("Or Describe Your Coloring Book (Direct)")
     user_request = st.text_area(
         "What kind of coloring book would you like to create?",
         placeholder="Example: A forest animals coloring book for adults with intricate mandala patterns...",
@@ -711,16 +712,16 @@ def render_design_generation_tab():
 
     col1, col2 = st.columns([1, 4])
     with col1:
-        generate_btn = st.button("🚀 Generate", type="primary", disabled=st.session_state.get("is_running", False))
+        generate_btn = st.button("Generate", type="primary", disabled=st.session_state.get("is_running", False))
     with col2:
-        if st.button("🔄 Clear", disabled=st.session_state.get("is_running", False)):
+        if st.button("Clear", disabled=st.session_state.get("is_running", False)):
             st.session_state.workflow_state = None
             st.rerun()
 
-    st.markdown("**💾 Saved Designs**")
+    st.markdown("**Saved Designs**")
     if workflow_state and workflow_state.get("title"):
         save_name = st.text_input("Save as:", value=workflow_state.get("title", ""), key="save_name_input")
-        if st.button("💾 Save Current Design", key="save_design_btn"):
+        if st.button("Save Current Design", key="save_design_btn"):
             try:
                 filepath = save_workflow_state(workflow_state, name=save_name if save_name else None)
                 st.success("Design saved!")
@@ -728,17 +729,17 @@ def render_design_generation_tab():
             except Exception as e:
                 st.error(f"Error saving: {e}")
 
-    st.markdown("**📂 Load Previous Design**")
+    st.markdown("**Load Previous Design**")
     saved_states = list_saved_states()
     if saved_states:
         for state_info in saved_states[:10]:
-            with st.expander(f"📄 {state_info['title']}", expanded=False):
+            with st.expander(f"{state_info['title']}", expanded=False):
                 st.caption(f"Saved: {state_info['saved_at']}")
                 if state_info['description']:
                     st.text(state_info['description'][:150])
                 col1, col2 = st.columns(2)
                 with col1:
-                    if st.button("📂 Load", key=f"load_{state_info['name']}"):
+                    if st.button("Load", key=f"load_{state_info['name']}"):
                         loaded_state = load_workflow_state(state_info['filepath'])
                         if loaded_state:
                             st.session_state.workflow_state = loaded_state
@@ -747,7 +748,7 @@ def render_design_generation_tab():
                         else:
                             st.error("Failed to load design")
                 with col2:
-                    if st.button("🗑️ Delete", key=f"delete_{state_info['name']}"):
+                    if st.button("Delete", key=f"delete_{state_info['name']}"):
                         if delete_saved_state(state_info['filepath']):
                             st.success("Deleted!")
                             st.rerun()
@@ -759,7 +760,7 @@ def render_design_generation_tab():
     if workflow_state:
         pending_question = workflow_state.get("pending_question", "")
         if pending_question and not st.session_state.get("is_running", False):
-            st.info("💬 **Agent Question**")
+            st.info("**Agent Question**")
             st.markdown(f"**{pending_question}**")
 
             user_answer = st.text_input(
@@ -770,7 +771,7 @@ def render_design_generation_tab():
 
             col1, col2 = st.columns([1, 4])
             with col1:
-                if st.button("✅ Submit Answer", type="primary"):
+                if st.button("Submit Answer", type="primary"):
                     if user_answer.strip():
                         workflow_state["user_answer"] = user_answer.strip()
                         workflow_state["pending_question"] = ""
@@ -781,7 +782,7 @@ def render_design_generation_tab():
                     else:
                         st.warning("Please provide an answer.")
             with col2:
-                if st.button("❌ Skip Question"):
+                if st.button("Skip Question"):
                     workflow_state["user_answer"] = "No response provided"
                     workflow_state["pending_question"] = ""
                     workflow_state["status"] = "generating"
@@ -791,7 +792,7 @@ def render_design_generation_tab():
 
     if generate_btn and user_request.strip():
         st.session_state.is_running = True
-        with st.spinner("🔄 Running multi-agent workflow with per-component evaluation..."):
+        with st.spinner("Running multi-agent workflow with per-component evaluation..."):
             try:
                 final_state = run_coloring_book_agent(user_request)
                 st.session_state.workflow_state = final_state
@@ -803,7 +804,7 @@ def render_design_generation_tab():
                         pass
                 st.rerun()
             except Exception as e:
-                st.error(f"❌ Error: {e}")
+                st.error(f"Error: {e}")
                 st.session_state.is_running = False
 
     elif generate_btn and not user_request.strip():
@@ -811,7 +812,7 @@ def render_design_generation_tab():
 
     if workflow_state and workflow_state.get("status") == "waiting_for_user" and workflow_state.get("user_answer"):
         st.session_state.is_running = True
-        with st.spinner("🔄 Continuing workflow with your answer..."):
+        with st.spinner("Continuing workflow with your answer..."):
             try:
                 app = create_coloring_book_graph()
                 current_state = workflow_state.copy()
@@ -820,7 +821,7 @@ def render_design_generation_tab():
                 st.session_state.is_running = False
                 st.rerun()
             except Exception as e:
-                st.error(f"❌ Error continuing workflow: {e}")
+                st.error(f"Error continuing workflow: {e}")
                 import traceback
                 st.code(traceback.format_exc())
                 st.session_state.is_running = False

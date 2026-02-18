@@ -10,10 +10,10 @@ from features.image_generation.image_utils import create_thumbnail
 
 def render_image_generation_tab(state: dict):
     """Render Image Generation tab with folder monitoring and click-to-select image grid."""
-    st.markdown("## 🖼️ Image Generation")
+    st.markdown("## Image Generation")
     default_folder = state.get("images_folder_path", "./generated_images/")
     folder_path = st.text_input(
-        "📁 Image Folder Path",
+        "Image Folder Path",
         value=default_folder,
         help="Path to the folder containing your generated images",
         key="image_folder_input"
@@ -23,7 +23,7 @@ def render_image_generation_tab(state: dict):
     state["images_folder_path"] = folder_path
     btn1, btn2, btn3, _ = st.columns([1, 1, 1, 5])
     with btn1:
-        if st.button("🔄 Refresh", key="refresh_images"):
+        if st.button("Refresh", key="refresh_images"):
             st.rerun()
     with btn2:
         if st.button("Select All", key="select_all_images", disabled=found_count == 0):

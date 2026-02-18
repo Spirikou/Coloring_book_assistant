@@ -15,7 +15,7 @@ from ui.components.pinterest_components import (
 
 def render_pinterest_tab(state: dict):
     """Render the Pinterest Publishing tab."""
-    st.header("📌 Pinterest Publishing")
+    st.header("Pinterest Publishing")
 
     if "pinterest_workflow" not in st.session_state:
         st.session_state.pinterest_workflow = PinterestPublishingWorkflow()
@@ -59,7 +59,7 @@ def render_pinterest_tab(state: dict):
     browser_status = state.get("browser_status", {})
 
     if prerequisites["all_ready"]:
-        with st.expander("⚙️ Configuration", expanded=False):
+        with st.expander("Configuration", expanded=False):
             config = render_configuration_section(state)
         if not config["images_folder"] and images_folder_path:
             config["images_folder"] = images_folder_path
@@ -67,14 +67,14 @@ def render_pinterest_tab(state: dict):
             state["pinterest_board_name"] = config["board_name"]
             st.session_state.workflow_state = state
 
-        st.subheader("🚀 Publishing")
+        st.subheader("Publishing")
         if state.get("pinterest_status") == "publishing":
             render_progress_display(state.get("pinterest_progress", {}))
 
         if not config["images_folder"]:
-            st.error("❌ No images folder. Set folder in Image Generation tab.")
+            st.error("No images folder. Set folder in Image Generation tab.")
         elif not Path(config["images_folder"]).exists():
-            st.error(f"❌ Folder not found: `{config['images_folder']}`")
+            st.error(f"Folder not found: `{config['images_folder']}`")
         else:
             can_publish = (
                 prerequisites["all_ready"]
@@ -82,7 +82,7 @@ def render_pinterest_tab(state: dict):
                 and browser_status.get("connected", False)
                 and config["images_folder"]
             )
-            if st.button("🚀 Start Publishing", disabled=not can_publish, key="start_publishing_btn"):
+            if st.button("Start Publishing", disabled=not can_publish, key="start_publishing_btn"):
                 try:
                     from integrations.pinterest.workflow_logger import get_workflow_logger
                     workflow_logger = get_workflow_logger()
@@ -125,7 +125,7 @@ def render_pinterest_tab(state: dict):
                     if workflow_logger:
                         try:
                             workflow_logger.log_error(e, "pinterest_tab")
-                            st.info(f"📝 Log: `{workflow_logger.log_file}`")
+                            st.info(f"Log: `{workflow_logger.log_file}`")
                         except Exception:
                             pass
                     state["pinterest_status"] = "failed"
@@ -141,4 +141,4 @@ def render_pinterest_tab(state: dict):
             missing.append("Images (Image Generation tab)")
         if not prerequisites["checks"]["browser_connected"]:
             missing.append("Browser (Check Browser above)")
-        st.info("💡 Complete: " + ", ".join(missing))
+        st.info("Complete: " + ", ".join(missing))

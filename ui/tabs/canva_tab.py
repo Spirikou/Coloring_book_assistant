@@ -15,7 +15,7 @@ from ui.components.canva_components import (
 
 def render_canva_tab(state: dict):
     """Render the Canva Design tab. Uses same images folder as Pinterest."""
-    st.header("🎨 Canva Design")
+    st.header("Canva Design")
 
     if "canva_workflow" not in st.session_state:
         st.session_state.canva_workflow = CanvaDesignWorkflow()
@@ -54,7 +54,7 @@ def render_canva_tab(state: dict):
     browser_status = state.get("browser_status", {})
 
     if prerequisites["all_ready"]:
-        with st.expander("⚙️ Configuration", expanded=False):
+        with st.expander("Configuration", expanded=False):
             config = render_canva_configuration_section(state)
         if not config["images_folder"] and images_folder_path:
             config["images_folder"] = images_folder_path
@@ -68,17 +68,17 @@ def render_canva_tab(state: dict):
             state["canva_blank_between"] = config["blank_between"]
         st.session_state.workflow_state = state
 
-        st.subheader("🚀 Design Creation")
+        st.subheader("Design Creation")
         if state.get("canva_status") == "creating":
             render_canva_progress_display(state.get("canva_progress", {}))
 
         if not config["images_folder"]:
-            st.error("❌ No images folder. Set folder in Image Generation tab.")
+            st.error("No images folder. Set folder in Image Generation tab.")
         elif not Path(config["images_folder"]).exists():
-            st.error(f"❌ Folder not found: `{config['images_folder']}`")
+            st.error(f"Folder not found: `{config['images_folder']}`")
         else:
             can_create = prerequisites["all_ready"] and config["images_folder"] and browser_status.get("connected", False)
-            if st.button("🚀 Start Design Creation", disabled=not can_create, key="start_canva_design_btn"):
+            if st.button("Start Design Creation", disabled=not can_create, key="start_canva_design_btn"):
                 try:
                     state["canva_status"] = "creating"
                     st.session_state.workflow_state = state
@@ -120,4 +120,4 @@ def render_canva_tab(state: dict):
             missing.append("Images (Image Generation tab)")
         if not prerequisites["checks"]["browser_connected"]:
             missing.append("Browser (Check Browser above)")
-        st.info("💡 Complete: " + ", ".join(missing))
+        st.info("Complete: " + ", ".join(missing))
