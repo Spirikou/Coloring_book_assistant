@@ -53,7 +53,12 @@ SUPPORTED_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp"]
 # TIMING CONFIGURATION
 # ============================================================================
 # Delay between publishing pins (seconds) - helps avoid rate limiting
-DELAY_BETWEEN_PINS = 7
+# Reduced from 7 to 4 for faster batches (analysis: docs/PINTEREST_PUBLISHING_ANALYSIS_AND_IMPROVEMENT_PLAN.md)
+DELAY_BETWEEN_PINS = 4
+
+# Process timeout (seconds) - max time for multiprocessing publisher before termination
+# 7200 = 2 hours, allows ~100+ images at ~60 sec/image
+PROCESS_TIMEOUT = 7200
 
 # Timeouts for various operations (milliseconds)
 PAGE_LOAD_TIMEOUT = 15000
@@ -62,7 +67,11 @@ PUBLISH_TIMEOUT = 15000
 
 # Description processing delay (milliseconds)
 # Wait after filling description to ensure Pinterest processes it before publishing
-DESCRIPTION_PROCESSING_DELAY = 1000  # 1 second delay after filling description
+DESCRIPTION_PROCESSING_DELAY = 500  # Reduced from 1000; fast fill needs less
+
+# Keyboard type delay (ms per character) for description when keyboard.type fallback is used
+# Reduced from 10 to 1 for ~5 sec savings per 600-char description
+KEYBOARD_TYPE_DELAY_MS = 1
 
 # Maximum description length (limit to 600 to avoid bugs)
 MAX_DESCRIPTION_LENGTH = 600

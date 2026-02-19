@@ -73,7 +73,7 @@ def render_canva_prerequisites_check(state: dict) -> dict:
         else:
             st.warning("○ **Browser**\n\nNot connected. Click 'Check Browser' below.")
     
-    if st.button("Check Browser Connection", key="check_browser_canva_btn", use_container_width=True):
+    if st.button("Check Browser Connection", key="check_browser_canva_btn", width="stretch"):
         st.session_state["check_browser_canva_clicked"] = True
         st.rerun()
     

@@ -37,6 +37,25 @@ def get_images_in_folder(folder_path: str) -> List[str]:
     return image_files
 
 
+def list_images_in_folder(folder_path: str) -> List[Path]:
+    """
+    Scan folder for image files and return list of Paths sorted by mtime (newest first).
+    Used for downloaded images gallery.
+    """
+    if not folder_path or not os.path.exists(folder_path):
+        return []
+
+    folder = Path(folder_path)
+    if not folder.is_dir():
+        return []
+
+    paths = []
+    for file_path in folder.iterdir():
+        if file_path.is_file() and file_path.suffix.lower() in IMAGE_EXTENSIONS:
+            paths.append(file_path)
+    return sorted(paths, key=lambda p: p.stat().st_mtime, reverse=True)
+
+
 def validate_image_count(folder_path: str, expected_count: int) -> Dict:
     """
     Check if folder has expected number of images.

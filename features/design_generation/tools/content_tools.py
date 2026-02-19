@@ -21,6 +21,7 @@ from features.design_generation.agents.evaluator import (
     PASS_THRESHOLD
 )
 from features.design_generation.tools.search_tools import web_search
+from features.design_generation.constants import MIN_CONCEPT_VARIATIONS, MAX_CONCEPT_VARIATIONS
 
 load_dotenv()
 
@@ -38,34 +39,37 @@ def get_llm():
 # CONCEPT VARIATIONS (preliminary research - not exposed to executor)
 # =============================================================================
 
-def generate_concept_variations(user_idea: str) -> list[dict]:
+def generate_concept_variations(user_idea: str, num_variations: int = 5) -> list[dict]:
     """
-    Generate 5 creative variations of the user's idea with different themes and art styles.
+    Generate N creative variations of the user's idea with different themes and art styles.
     Called directly from UI for preliminary concept research. Not exposed to executor agent.
 
     Args:
         user_idea: The user's initial idea (e.g., "dog", "forest animals").
+        num_variations: Number of variations to generate (5-10, default 5).
 
     Returns:
-        List of 5 dicts, each with id, theme_concept, art_style, style_description,
+        List of N dicts, each with id, theme_concept, art_style, style_description,
         unique_angle, and mixable_components (theme, style).
     """
+    num_variations = max(MIN_CONCEPT_VARIATIONS, min(MAX_CONCEPT_VARIATIONS, num_variations))
+
     llm = get_llm()
     prompt = ChatPromptTemplate.from_template("""
-You are a creative director for a coloring book publishing company. Generate 5 DISTINCT and CREATIVE variations of this idea for coloring books.
+You are a creative director for a coloring book publishing company. Generate {num_variations} DISTINCT and CREATIVE variations of this idea for coloring books.
 
 ## USER'S IDEA:
 {user_idea}
 
 ## YOUR TASK:
-Create exactly 5 variations. Each variation must be UNIQUE and DIFFERENT from the others.
+Create exactly {num_variations} variations. Each variation must be UNIQUE and DIFFERENT from the others.
 - Include 2-3 THEME TWISTS (e.g., "dogs in space", "hairy dogs", "underwater dogs")
 - Include 2-3 ART STYLE suggestions (e.g., "Asian ink wash", "Pop manga", "Art Nouveau")
-- Mix theme twists and art styles across the 5 variations
+- Mix theme twists and art styles across the variations
 - Be creative and diverse - avoid near-duplicates
 - Each variation should feel like a distinct coloring book concept
 
-## RESPONSE FORMAT (JSON array with exactly 5 objects):
+## RESPONSE FORMAT (JSON array with exactly {num_variations} objects):
 [
   {{
     "theme_concept": "Creative theme twist (e.g., dogs in space)",
@@ -73,12 +77,12 @@ Create exactly 5 variations. Each variation must be UNIQUE and DIFFERENT from th
     "style_description": "1-2 sentences describing this style for coloring books",
     "unique_angle": "What makes this concept special and marketable"
   }},
-  ... (5 total)
+  ... ({num_variations} total)
 ]
 
 Return ONLY the JSON array, no other text.""")
     chain = prompt | llm | StrOutputParser()
-    result = chain.invoke({"user_idea": user_idea})
+    result = chain.invoke({"user_idea": user_idea, "num_variations": num_variations})
     try:
         result = result.strip()
         if result.startswith("```json"):
@@ -90,9 +94,9 @@ Return ONLY the JSON array, no other text.""")
         variations = json.loads(result.strip())
         if not isinstance(variations, list):
             variations = [variations] if isinstance(variations, dict) else []
-        # Ensure exactly 5, add ids and mixable_components
+        # Ensure exactly num_variations, add ids and mixable_components
         out = []
-        for i, v in enumerate(variations[:5]):
+        for i, v in enumerate(variations[:num_variations]):
             if isinstance(v, dict):
                 theme = v.get("theme_concept", v.get("theme", ""))
                 style = v.get("art_style", v.get("style", ""))
@@ -107,7 +111,7 @@ Return ONLY the JSON array, no other text.""")
                         "style": style,
                     },
                 })
-        return out[:5]
+        return out[:num_variations]
     except json.JSONDecodeError:
         return []
 
@@ -493,7 +497,7 @@ You are an expert at creating MidJourney prompts for coloring book designs in a 
 ## PROMPT FORMAT:
 Create EXACTLY 50 prompts. Each prompt MUST follow this EXACT format:
 
-"[subject], [style keywords], [details], [art style], coloring book page, clean and simple line art --v 5 --q 2 --no color --ar 1:1"
+"[subject], [style keywords], [details], [art style], coloring book page, clean and simple line art, black and white --no color --ar 1:1"
 
 ## CRITICAL RULES:
 1. EXACTLY 50 prompts (not 49, not 51)
@@ -501,13 +505,14 @@ Create EXACTLY 50 prompts. Each prompt MUST follow this EXACT format:
 3. Each keyword is 1-3 words max
 4. MUST include "coloring book page" in every prompt
 5. MUST include "clean and simple line art" in every prompt
-6. MUST end with "--v 5 --q 2 --no color --ar 1:1"
-7. EVERY prompt must include the ARTISTIC STYLE specified above in the keywords
+6. MUST include "black and white" in every prompt
+7. MUST end with "--no color --ar 1:1"
+8. EVERY prompt must include the ARTISTIC STYLE specified above in the keywords
 
 ## STYLE-SPECIFIC EXAMPLES:
-- Mandala style: "owl, mandala pattern, zentangle, intricate circles, coloring book page, clean and simple line art --v 5 --q 2 --no color --ar 1:1"
-- Art Nouveau: "peacock, art nouveau, flowing lines, decorative border, coloring book page, clean and simple line art --v 5 --q 2 --no color --ar 1:1"
-- Kerby Rosanes style: "elephant, morphing into flowers, hyperdetailed, hidden elements, coloring book page, clean and simple line art --v 5 --q 2 --no color --ar 1:1"
+- Mandala style: "owl, mandala pattern, zentangle, intricate circles, coloring book page, clean and simple line art, black and white --no color --ar 1:1"
+- Art Nouveau: "peacock, art nouveau, flowing lines, decorative border, coloring book page, clean and simple line art, black and white --no color --ar 1:1"
+- Kerby Rosanes style: "elephant, morphing into flowers, hyperdetailed, hidden elements, coloring book page, clean and simple line art, black and white --no color --ar 1:1"
 
 ## BAD PROMPTS (DO NOT DO THIS):
 "A beautiful owl sitting majestically in an enchanted forest" - TOO WORDY, uses banned words, no style keywords

@@ -19,6 +19,11 @@ except Exception as e:
 from .pinterest_tool import publish_pinterest_pins_core, PinterestPublishOutput
 from .browser_utils import check_browser_connection
 
+try:
+    from .config import PROCESS_TIMEOUT
+except ImportError:
+    PROCESS_TIMEOUT = 7200  # 2 hours default
+
 logger = logging.getLogger(__name__)
 
 # Log import attempts
@@ -91,7 +96,7 @@ def _publish_via_multiprocessing(
     
     # Poll for progress updates and results
     result = None
-    process_timeout = 600  # 10 minutes max
+    process_timeout = PROCESS_TIMEOUT
     start_time = time.time()
     
     try:

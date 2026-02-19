@@ -56,6 +56,9 @@ class ColoringBookState(TypedDict, total=False):
     workflow_stage: str  # Current stage: "design", "images", "future_step_1", etc.
     completed_stages: list  # List of completed workflow stages
     
+    # Generation log (for concept-based designs - step-by-step progress)
+    generation_log: list  # [{"step": str, "message": str}, ...]
+
     # Step completion status for real-time progress updates
     theme_status: str  # "pending", "in_progress", "completed", "failed"
     title_status: str  # "pending", "in_progress", "completed", "failed"

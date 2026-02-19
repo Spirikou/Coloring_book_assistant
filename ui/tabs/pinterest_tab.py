@@ -5,11 +5,14 @@ from pathlib import Path
 
 from integrations.pinterest.browser_utils import check_browser_connection
 from workflows.pinterest.publisher import PinterestPublishingWorkflow
+from core.persistence import load_pinterest_config
 from ui.components.pinterest_components import (
     render_pinterest_combined_checks,
     render_configuration_section,
+    render_preview_section,
     render_progress_display,
     render_results_summary,
+    render_session_management,
 )
 
 
@@ -60,7 +63,7 @@ def render_pinterest_tab(state: dict):
 
     if prerequisites["all_ready"]:
         with st.expander("Configuration", expanded=False):
-            config = render_configuration_section(state)
+            config = render_configuration_section(state, effective_images_folder=images_folder_path)
         if not config["images_folder"] and images_folder_path:
             config["images_folder"] = images_folder_path
         if config["board_name"]:
@@ -76,11 +79,15 @@ def render_pinterest_tab(state: dict):
         elif not Path(config["images_folder"]).exists():
             st.error(f"Folder not found: `{config['images_folder']}`")
         else:
+            # Preview: editable title, description, image grid
+            preview = render_preview_section(state, config["images_folder"])
+
             can_publish = (
                 prerequisites["all_ready"]
                 and config["board_name"]
                 and browser_status.get("connected", False)
                 and config["images_folder"]
+                and len(preview.get("selected_images", [])) > 0
             )
             if st.button("Start Publishing", disabled=not can_publish, key="start_publishing_btn"):
                 try:
@@ -92,10 +99,13 @@ def render_pinterest_tab(state: dict):
                 try:
                     with st.spinner("Preparing..."):
                         state["pinterest_status"] = "preparing"
+                        state["images_folder_path"] = config["images_folder"]
                         st.session_state.workflow_state = state
-                        selected = state.get("selected_images") or []
+                        # Use preview selection (user may have removed images)
+                        selected = preview.get("selected_images") or []
+                        design_state = {**state, "title": preview["title"], "description": preview["description"]}
                         folder_path = workflow.prepare_publishing_folder(
-                            design_state=state,
+                            design_state=design_state,
                             images_folder=config["images_folder"],
                             selected_images=selected if selected else None,
                         )
@@ -103,9 +113,18 @@ def render_pinterest_tab(state: dict):
                         state["pinterest_status"] = "publishing"
                         st.session_state.workflow_state = state
 
+                    progress_placeholder = st.empty()
+
                     def progress_callback(progress_update: dict):
                         state["pinterest_progress"] = progress_update
                         st.session_state.workflow_state = state
+                        cur = progress_update.get("current", 0)
+                        tot = progress_update.get("total", 0)
+                        with progress_placeholder.container():
+                            if tot > 0:
+                                st.caption(f"Publishing {cur}/{tot} pins...")
+                            else:
+                                st.caption(progress_update.get("message", "Publishing pins..."))
 
                     with st.spinner("Publishing pins..."):
                         results = workflow.publish_to_pinterest(
@@ -133,6 +152,61 @@ def render_pinterest_tab(state: dict):
 
         if state.get("pinterest_status") in ["completed", "failed"]:
             render_results_summary(state.get("pinterest_results", {}))
+
+        # Publishing Sessions section
+        with st.expander("Publishing Sessions — browse and manage past sessions", expanded=False):
+            # Handle re-run from session detail
+            if state.get("pinterest_rerun_requested") and state.get("pinterest_rerun_folder"):
+                folder_path = state["pinterest_rerun_folder"]
+                saved_config = load_pinterest_config()
+                board_name = state.get("pinterest_board_name") or (saved_config.get("board_name", "") if saved_config else "")
+                browser_status = state.get("browser_status", {})
+                if board_name and browser_status.get("connected", False):
+                    state["pinterest_rerun_requested"] = False
+                    state["pinterest_status"] = "publishing"
+                    st.session_state.workflow_state = state
+                    progress_placeholder = st.empty()
+
+                    def rerun_progress_callback(progress_update: dict):
+                        state["pinterest_progress"] = progress_update
+                        st.session_state.workflow_state = state
+                        cur = progress_update.get("current", 0)
+                        tot = progress_update.get("total", 0)
+                        with progress_placeholder.container():
+                            if tot > 0:
+                                st.caption(f"Publishing {cur}/{tot} pins...")
+                            else:
+                                st.caption(progress_update.get("message", "Publishing pins..."))
+
+                    try:
+                        with st.spinner("Re-publishing pins..."):
+                            results = workflow.publish_to_pinterest(
+                                folder_path=folder_path,
+                                board_name=board_name,
+                                progress_callback=rerun_progress_callback,
+                            )
+                            state["pinterest_results"] = results
+                            state["pinterest_status"] = "completed" if results.get("success", False) else "failed"
+                            st.session_state.workflow_state = state
+                        st.rerun()
+                    except Exception as e:
+                        import traceback
+                        st.error(f"Error: {str(e)}")
+                        with st.expander("Error Details", expanded=False):
+                            st.code(traceback.format_exc())
+                        state["pinterest_status"] = "failed"
+                        state["pinterest_rerun_requested"] = False
+                        st.session_state.workflow_state = state
+                        st.rerun()
+                else:
+                    if not board_name:
+                        st.error("Board name required for re-run. Set it in Configuration above.")
+                    else:
+                        st.error("Browser not connected. Check browser connection above.")
+                    state["pinterest_rerun_requested"] = False
+                    st.session_state.workflow_state = state
+
+            render_session_management(state)
     else:
         missing = []
         if not prerequisites["checks"]["design_generated"]:

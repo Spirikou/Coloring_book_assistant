@@ -1,8 +1,18 @@
 """Reusable UI components for Pinterest tab."""
 
 import streamlit as st
+from pathlib import Path
 from integrations.pinterest.antivirus_check import run_full_check, get_bitdefender_warning
 from ui.components.shared_checks import render_combined_checks, BROWSER_STATUS_KEY
+from core.persistence import (
+    save_pinterest_config,
+    load_pinterest_config,
+    list_publish_sessions,
+    load_session_config,
+    delete_session_image,
+    delete_publish_session,
+    IMAGE_EXTENSIONS,
+)
 
 
 def render_pinterest_combined_checks(state: dict) -> dict:
@@ -99,34 +109,148 @@ def render_prerequisites_check(state: dict) -> dict:
     }
 
 
-def render_configuration_section(state: dict) -> dict:
-    """Render configuration inputs."""
+def render_configuration_section(state: dict, effective_images_folder: str = "") -> dict:
+    """Render configuration inputs.
+    effective_images_folder: Fallback path when state has none (e.g. from GENERATED_IMAGES_DIR).
+    """
     st.subheader("Configuration")
-    
+
+    saved_config = load_pinterest_config()
+    default_board = state.get("pinterest_board_name") or (saved_config.get("board_name", "") if saved_config else "")
+    default_folder = state.get("images_folder_path") or effective_images_folder or (
+        saved_config.get("images_folder_path", "") if saved_config else ""
+    )
+
     board_name = st.text_input(
         "Pinterest Board Name",
-        value=state.get("pinterest_board_name", ""),
+        value=default_board,
         help="Enter the exact name of your Pinterest board (must match exactly)",
         key="pinterest_board_input",
         placeholder="e.g., Coloring Books"
     )
-    
-    images_folder = state.get("images_folder_path", "")
+
+    images_folder = st.text_input(
+        "Images Folder",
+        value=default_folder,
+        help="Path to folder containing images to publish.",
+        key="pinterest_images_folder_input",
+        placeholder="e.g., C:/path/to/generated_images"
+    )
+    images_folder = images_folder.strip() if images_folder else ""
+
     if images_folder:
         from utils.folder_monitor import get_images_in_folder
         folder_images = get_images_in_folder(images_folder)
         image_count = len(folder_images)
-        
         if image_count > 0:
             st.success(f"**Images Folder:** `{images_folder}`\n\n✓ {image_count} images found")
         else:
             st.warning(f"**Images Folder:** `{images_folder}`\n\n○ No images found in this folder")
     else:
-        st.warning("No images folder set. Please set the folder path in the Image Generation tab first.")
-    
+        st.warning("Enter the path to the folder containing your images.")
+
+    if st.button("Save Configuration", key="pinterest_save_config_btn", help="Save board name and images folder for next time"):
+        if save_pinterest_config(board_name, images_folder):
+            st.success("Configuration saved.")
+            st.rerun()
+        else:
+            st.error("Failed to save configuration.")
+
     return {
         "board_name": board_name,
         "images_folder": images_folder
+    }
+
+
+def render_preview_section(state: dict, images_folder: str) -> dict:
+    """
+    Render preview before publishing: editable title, description, and image grid.
+    Users can remove images from the publish batch before starting.
+
+    Returns:
+        dict with title, description, selected_images to use when publishing
+    """
+    from utils.folder_monitor import get_images_in_folder
+
+    st.subheader("Preview before publishing")
+    st.caption("Edit the title and description, review images, and remove any you don't want to publish.")
+
+    title = st.text_input(
+        "Pin title",
+        value=state.get("title", ""),
+        key="pinterest_preview_title",
+        help="Title for all pins (max 100 chars on Pinterest)",
+        max_chars=100,
+    )
+
+    description = st.text_area(
+        "Pin description",
+        value=state.get("description", ""),
+        key="pinterest_preview_description",
+        help="Description for all pins (max 600 chars recommended)",
+        height=150,
+    )
+
+    # Excluded images (removed from batch before publishing)
+    excluded = set(state.get("pinterest_excluded_images", []))
+    # Clear excluded when images folder changes
+    folder_key = "pinterest_preview_folder"
+    if state.get(folder_key) != images_folder:
+        excluded = set()
+        state["pinterest_excluded_images"] = []
+        state[folder_key] = images_folder
+        if "workflow_state" in st.session_state:
+            st.session_state.workflow_state = state
+
+    # Image grid
+    if images_folder and Path(images_folder).exists():
+        all_paths = get_images_in_folder(images_folder)
+        all_paths.sort(key=lambda p: Path(p).name)
+        to_publish = [p for p in all_paths if p not in excluded]
+        removed = [p for p in all_paths if p in excluded]
+
+        if to_publish:
+            st.markdown(f"**Images to publish** ({len(to_publish)} images)")
+            cols = st.columns(min(4, len(to_publish)) or 1)
+            for i, img_path in enumerate(to_publish):
+                col = cols[i % len(cols)]
+                with col:
+                    try:
+                        st.image(str(img_path), caption=Path(img_path).name, use_container_width=True)
+                    except Exception:
+                        st.caption(Path(img_path).name)
+                    if st.button("Remove", key=f"preview_remove_{Path(img_path).name}".replace(".", "_"), type="secondary"):
+                        state.setdefault("pinterest_excluded_images", []).append(img_path)
+                        st.session_state.workflow_state = state
+                        st.rerun()
+
+        if removed:
+            with st.expander(f"Removed ({len(removed)} images — click to add back)", expanded=False):
+                cols = st.columns(min(4, len(removed)) or 1)
+                for i, img_path in enumerate(removed):
+                    col = cols[i % len(cols)]
+                    with col:
+                        try:
+                            st.image(str(img_path), caption=Path(img_path).name, use_container_width=True)
+                        except Exception:
+                            st.caption(Path(img_path).name)
+                        if st.button("Add back", key=f"preview_addback_{Path(img_path).name}".replace(".", "_")):
+                            state["pinterest_excluded_images"] = [p for p in state.get("pinterest_excluded_images", []) if p != img_path]
+                            st.session_state.workflow_state = state
+                            st.rerun()
+
+        if not to_publish and not all_paths:
+            st.warning("No images found in the selected folder.")
+        elif not to_publish:
+            st.warning("All images removed. Add some back or select a different folder.")
+    else:
+        to_publish = []
+        st.warning("Select an images folder in Configuration to preview.")
+
+    return {
+        "title": title,
+        "description": description,
+        "selected_images": to_publish,
     }
 
 
@@ -193,6 +317,108 @@ def render_results_summary(results: dict):
         with st.expander("Errors", expanded=True):
             for error in errors:
                 st.error(error)
+
+
+def render_session_management(state: dict) -> None:
+    """Render the Publishing Sessions section: list sessions, selector, load view."""
+    st.subheader("Publishing Sessions")
+    sessions = list_publish_sessions()
+    if not sessions:
+        st.info("No publish sessions yet. Start publishing to create sessions.")
+        return
+
+    # Session selector
+    options = [
+        f"{s['timestamp']} — {s['title'][:40]}{'...' if len(s['title']) > 40 else ''} ({s['published_count']}/{s['image_count']} pins)"
+        for s in sessions
+    ]
+    selected_idx = st.selectbox(
+        "Select session",
+        range(len(sessions)),
+        format_func=lambda i: options[i],
+        key="pinterest_session_select",
+    )
+    if selected_idx is not None and 0 <= selected_idx < len(sessions):
+        selected = sessions[selected_idx]
+        state["pinterest_selected_session"] = selected["folder_path"]
+        st.session_state.workflow_state = state
+        render_session_detail(selected, state)
+
+
+def render_session_detail(session: dict, state: dict) -> None:
+    """Render session detail: title, description, image grid with Delete, Re-run button."""
+    folder_path = session["folder_path"]
+    config = load_session_config(folder_path) or {}
+    title = config.get("title", "Untitled")
+    description = config.get("description", "")
+
+    st.markdown("---")
+    st.markdown(f"**Title:** {title}")
+    with st.expander("Description", expanded=False):
+        st.text(description[:500] + ("..." if len(description) > 500 else ""))
+
+    # Image grid
+    folder = Path(folder_path)
+    image_files = [
+        f for f in folder.iterdir()
+        if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
+    ]
+    image_files.sort(key=lambda p: p.name)
+
+    if not image_files:
+        st.warning("No images in this session.")
+    else:
+        st.markdown("**Images**")
+        cols = st.columns(min(4, len(image_files)) or 1)
+        for i, img_path in enumerate(image_files):
+            col = cols[i % len(cols)]
+            with col:
+                try:
+                    st.image(str(img_path), caption=img_path.name, use_container_width=True)
+                except Exception:
+                    st.caption(img_path.name)
+                folder_name = Path(folder_path).name
+                if st.button("Delete", key=f"del_{folder_name}_{img_path.name}".replace(".", "_"), type="secondary"):
+                    if delete_session_image(folder_path, img_path.name):
+                        st.success(f"Deleted {img_path.name}")
+                        st.rerun()
+                    else:
+                        st.error(f"Failed to delete {img_path.name}")
+
+    # Re-run and Delete session buttons
+    st.markdown("---")
+    col_rerun, col_del, _ = st.columns([1, 1, 2])
+    with col_rerun:
+        if st.button("Re-run Publishing", key="rerun_publishing_btn"):
+            state["pinterest_rerun_folder"] = folder_path
+            state["pinterest_rerun_requested"] = True
+            st.session_state.workflow_state = state
+            st.rerun()
+    with col_del:
+        if state.get("pinterest_delete_confirm") == folder_path:
+            st.warning("Delete this session and all its images?")
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("Confirm delete", key="confirm_del_session", type="primary"):
+                    if delete_publish_session(folder_path):
+                        state.pop("pinterest_delete_confirm", None)
+                        if "pinterest_selected_session" in state:
+                            del state["pinterest_selected_session"]
+                        st.session_state.workflow_state = state
+                        st.success("Session deleted.")
+                        st.rerun()
+                    else:
+                        st.error("Failed to delete session.")
+            with c2:
+                if st.button("Cancel", key="cancel_del_session"):
+                    state.pop("pinterest_delete_confirm", None)
+                    st.session_state.workflow_state = state
+                    st.rerun()
+        else:
+            if st.button("Delete session", key=f"del_session_{Path(folder_path).name}".replace(".", "_"), type="secondary"):
+                state["pinterest_delete_confirm"] = folder_path
+                st.session_state.workflow_state = state
+                st.rerun()
 
 
 def render_antivirus_check() -> dict:

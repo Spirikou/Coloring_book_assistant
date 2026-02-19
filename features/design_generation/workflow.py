@@ -53,7 +53,7 @@ def create_executor_node():
     """Create the executor node that generates content."""
     llm = ChatOpenAI(
         model="gpt-4.1-mini",
-        temperature=0.5,
+        temperature=0.7,
         api_key=os.getenv("OPENAI_API_KEY")
     )
     
@@ -75,6 +75,9 @@ def executor_node(state: ColoringBookState) -> ColoringBookState:
     # When concept is provided, skip agent and call content tools directly
     concept = state.get("concept")
     if concept and not state.get("user_answer"):
+        generation_log = []
+        generation_log.append({"step": "concept", "message": "Building theme context from concept..."})
+
         print("\n🎨 Concept-based design - Using pre-defined concept (skipping theme expansion)...")
         theme_context = _build_theme_context_from_concept(concept)
         user_request = theme_context.get("original_input", state.get("user_request", ""))
@@ -86,6 +89,7 @@ def executor_node(state: ColoringBookState) -> ColoringBookState:
         new_state["style_research"] = {}
 
         # Generate title and description
+        generation_log.append({"step": "title", "message": "Generating title and description..."})
         print("   📝 Generating title and description...")
         title_result = generate_and_refine_title_description.invoke({"user_input": user_request, "theme_context": theme_context})
         if isinstance(title_result, dict) and "final_content" in title_result:
@@ -98,6 +102,7 @@ def executor_node(state: ColoringBookState) -> ColoringBookState:
         new_state["title_status"] = "completed"
 
         # Generate prompts
+        generation_log.append({"step": "prompts", "message": "Generating MidJourney prompts..."})
         print("   🎨 Generating MidJourney prompts...")
         prompts_result = generate_and_refine_prompts.invoke({"description": new_state.get("description", ""), "theme_context": theme_context})
         if isinstance(prompts_result, dict) and "final_content" in prompts_result:
@@ -108,6 +113,7 @@ def executor_node(state: ColoringBookState) -> ColoringBookState:
         new_state["prompts_status"] = "completed"
 
         # Generate keywords
+        generation_log.append({"step": "keywords", "message": "Generating SEO keywords..."})
         print("   🔍 Generating SEO keywords...")
         keywords_result = generate_and_refine_keywords.invoke({"description": new_state.get("description", ""), "theme_context": theme_context})
         if isinstance(keywords_result, dict) and "final_content" in keywords_result:
@@ -117,6 +123,8 @@ def executor_node(state: ColoringBookState) -> ColoringBookState:
             new_state["keywords_passed"] = keywords_result.get("passed", False)
         new_state["keywords_status"] = "completed"
 
+        generation_log.append({"step": "complete", "message": "Design package complete!"})
+        new_state["generation_log"] = generation_log
         new_state["status"] = "complete"
         new_state["messages"] = []
         return new_state
@@ -477,6 +485,137 @@ def run_design_for_concept(concept: dict) -> ColoringBookState:
     print("=" * 60)
 
     return final_state
+
+
+DESIGN_STEPS = ["theme_context", "title", "prompts", "keywords"]
+
+
+def run_design_step_for_concept(
+    concept: dict,
+    step_name: str,
+    previous_state: ColoringBookState | None = None,
+) -> ColoringBookState:
+    """
+    Run a single step of design generation for a concept.
+    Used for step-by-step UI progress with checklist.
+
+    Args:
+        concept: Dict with theme, style (or theme_concept, art_style).
+        step_name: One of "theme_context", "title", "prompts", "keywords".
+        previous_state: State from previous step (required for title, prompts, keywords).
+
+    Returns:
+        Updated state with generation_log including completed steps.
+    """
+    theme = concept.get("theme") or concept.get("theme_concept", "")
+    style = concept.get("style") or concept.get("art_style", "")
+    mixable = concept.get("mixable_components", {})
+    if not theme and mixable:
+        theme = mixable.get("theme", "")
+    if not style and mixable:
+        style = mixable.get("style", "")
+    user_request = f"{theme} in {style} style" if (theme or style) else str(concept)
+
+    if previous_state:
+        new_state = dict(previous_state)
+        generation_log = list(new_state.get("generation_log", []))
+    else:
+        new_state = {
+            "user_request": user_request,
+            "concept": concept,
+            "concept_source": concept,
+            "expanded_theme": {},
+            "theme_attempts": [],
+            "theme_score": 0,
+            "theme_passed": False,
+            "style_research": {},
+            "title": "",
+            "description": "",
+            "midjourney_prompts": [],
+            "seo_keywords": [],
+            "title_attempts": [],
+            "prompts_attempts": [],
+            "keywords_attempts": [],
+            "title_score": 0,
+            "prompts_score": 0,
+            "keywords_score": 0,
+            "title_passed": False,
+            "prompts_passed": False,
+            "keywords_passed": False,
+            "messages": [],
+            "status": "generating",
+            "pending_question": "",
+            "user_answer": "",
+            "images_folder_path": "",
+            "uploaded_images": [],
+            "images_ready": False,
+            "workflow_stage": "design",
+            "completed_stages": [],
+            "theme_status": "pending",
+            "title_status": "pending",
+            "prompts_status": "pending",
+            "keywords_status": "pending",
+        }
+        generation_log = []
+
+    if step_name == "theme_context":
+        theme_context = _build_theme_context_from_concept(concept)
+    else:
+        theme_context = new_state.get("expanded_theme") or _build_theme_context_from_concept(concept)
+
+    if step_name == "theme_context":
+        generation_log.append({"step": "concept", "message": "Building theme context from concept..."})
+        new_state["expanded_theme"] = theme_context
+        new_state["theme_attempts"] = [{"attempt": 1, "content": theme_context, "evaluation": {"score": 100, "passed": True}, "feedback": ""}]
+        new_state["theme_score"] = 100
+        new_state["theme_passed"] = True
+        new_state["theme_status"] = "completed"
+        new_state["style_research"] = {}
+
+    elif step_name == "title":
+        generation_log.append({"step": "title", "message": "Generating title and description..."})
+        title_result = generate_and_refine_title_description.invoke(
+            {"user_input": theme_context.get("original_input", user_request), "theme_context": theme_context}
+        )
+        if isinstance(title_result, dict) and "final_content" in title_result:
+            fc = title_result["final_content"]
+            new_state["title"] = fc.get("title", "")
+            new_state["description"] = fc.get("description", "")
+            new_state["title_attempts"] = title_result.get("attempts", [])
+            new_state["title_score"] = title_result.get("final_score", 0)
+            new_state["title_passed"] = title_result.get("passed", False)
+        new_state["title_status"] = "completed"
+        new_state["expanded_theme"] = theme_context
+
+    elif step_name == "prompts":
+        generation_log.append({"step": "prompts", "message": "Generating MidJourney prompts..."})
+        prompts_result = generate_and_refine_prompts.invoke(
+            {"description": new_state.get("description", ""), "theme_context": theme_context}
+        )
+        if isinstance(prompts_result, dict) and "final_content" in prompts_result:
+            new_state["midjourney_prompts"] = prompts_result["final_content"]
+            new_state["prompts_attempts"] = prompts_result.get("attempts", [])
+            new_state["prompts_score"] = prompts_result.get("final_score", 0)
+            new_state["prompts_passed"] = prompts_result.get("passed", False)
+        new_state["prompts_status"] = "completed"
+
+    elif step_name == "keywords":
+        generation_log.append({"step": "keywords", "message": "Generating SEO keywords..."})
+        keywords_result = generate_and_refine_keywords.invoke(
+            {"description": new_state.get("description", ""), "theme_context": theme_context}
+        )
+        if isinstance(keywords_result, dict) and "final_content" in keywords_result:
+            new_state["seo_keywords"] = keywords_result["final_content"]
+            new_state["keywords_attempts"] = keywords_result.get("attempts", [])
+            new_state["keywords_score"] = keywords_result.get("final_score", 0)
+            new_state["keywords_passed"] = keywords_result.get("passed", False)
+        new_state["keywords_status"] = "completed"
+        generation_log.append({"step": "complete", "message": "Design package complete!"})
+        new_state["status"] = "complete"
+
+    new_state["generation_log"] = generation_log
+    new_state["concept_source"] = concept
+    return new_state
 
 
 def rerun_design_with_modifications(

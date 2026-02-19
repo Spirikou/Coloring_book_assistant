@@ -10,6 +10,14 @@ Features:
 Run with: uv run streamlit run app.py
 """
 
+import asyncio
+import sys
+
+# Windows: ProactorEventLoop required for Playwright (SelectorEventLoop raises
+# NotImplementedError on subprocess). Set before Streamlit/threading.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 import streamlit as st
 import os
 from dotenv import load_dotenv
@@ -24,9 +32,10 @@ from features.image_generation.ui import render_image_generation_tab
 load_dotenv()
 
 # Page configuration
+_logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo.png")
 st.set_page_config(
     page_title="Coloring Book Workflow",
-    page_icon="🎨",
+    page_icon=_logo_path if os.path.exists(_logo_path) else "🎨",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -148,8 +157,9 @@ def main():
     
     with tab2:
         workflow_state = st.session_state.get("workflow_state")
+        generated_designs = st.session_state.get("generated_designs", [])
         if workflow_state:
-            render_image_generation_tab(workflow_state)
+            render_image_generation_tab(workflow_state, generated_designs=generated_designs)
         else:
             st.info("Generate a design package first in the Design Generation tab.")
     

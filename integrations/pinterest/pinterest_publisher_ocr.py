@@ -23,22 +23,22 @@ from playwright.sync_api import sync_playwright, BrowserContext, Page
 # Log config import attempt
 if workflow_logger:
     try:
-        from .config import SUPPORTED_EXTENSIONS, DELAY_BETWEEN_PINS, BROWSER_TYPE, DEBUG_PORT, DESCRIPTION_PROCESSING_DELAY, MAX_DESCRIPTION_LENGTH
+        from .config import SUPPORTED_EXTENSIONS, DELAY_BETWEEN_PINS, BROWSER_TYPE, DEBUG_PORT, DESCRIPTION_PROCESSING_DELAY, MAX_DESCRIPTION_LENGTH, KEYBOARD_TYPE_DELAY_MS
         workflow_logger.log_import("integrations.pinterest.config (relative)", True)
     except Exception as e:
         workflow_logger.log_import("integrations.pinterest.config (relative)", False, e)
         try:
-            from integrations.pinterest.config import SUPPORTED_EXTENSIONS, DELAY_BETWEEN_PINS, BROWSER_TYPE, DEBUG_PORT, DESCRIPTION_PROCESSING_DELAY, MAX_DESCRIPTION_LENGTH
+            from integrations.pinterest.config import SUPPORTED_EXTENSIONS, DELAY_BETWEEN_PINS, BROWSER_TYPE, DEBUG_PORT, DESCRIPTION_PROCESSING_DELAY, MAX_DESCRIPTION_LENGTH, KEYBOARD_TYPE_DELAY_MS
             workflow_logger.log_import("integrations.pinterest.config (absolute)", True)
         except Exception as e2:
             workflow_logger.log_import("integrations.pinterest.config (absolute)", False, e2)
             raise e  # Re-raise original error
 else:
     try:
-        from .config import SUPPORTED_EXTENSIONS, DELAY_BETWEEN_PINS, BROWSER_TYPE, DEBUG_PORT, DESCRIPTION_PROCESSING_DELAY, MAX_DESCRIPTION_LENGTH
+        from .config import SUPPORTED_EXTENSIONS, DELAY_BETWEEN_PINS, BROWSER_TYPE, DEBUG_PORT, DESCRIPTION_PROCESSING_DELAY, MAX_DESCRIPTION_LENGTH, KEYBOARD_TYPE_DELAY_MS
     except ImportError:
         # Fallback for absolute import
-        from integrations.pinterest.config import SUPPORTED_EXTENSIONS, DELAY_BETWEEN_PINS, BROWSER_TYPE, DEBUG_PORT, DESCRIPTION_PROCESSING_DELAY, MAX_DESCRIPTION_LENGTH
+        from integrations.pinterest.config import SUPPORTED_EXTENSIONS, DELAY_BETWEEN_PINS, BROWSER_TYPE, DEBUG_PORT, DESCRIPTION_PROCESSING_DELAY, MAX_DESCRIPTION_LENGTH, KEYBOARD_TYPE_DELAY_MS
 
 # Log other imports
 if workflow_logger:
@@ -50,13 +50,6 @@ if workflow_logger:
         raise
     
     try:
-        from .content_generator import generate_pin_content
-        workflow_logger.log_import("integrations.pinterest.content_generator", True)
-    except Exception as e:
-        workflow_logger.log_import("integrations.pinterest.content_generator", False, e)
-        raise
-    
-    try:
         from .state_manager import StateManager
         workflow_logger.log_import("integrations.pinterest.state_manager", True)
     except Exception as e:
@@ -64,7 +57,6 @@ if workflow_logger:
         raise
 else:
     from .models import BookConfig, ImageInfo
-    from .content_generator import generate_pin_content
     from .state_manager import StateManager
 
 logger = logging.getLogger(__name__)
@@ -290,9 +282,9 @@ class PinterestPublisher:
             }
         
         if self.dry_run:
+            pin_title = self.config.title[:100]
             for img in unpublished:
-                content = generate_pin_content(img.keywords, self.config)
-                logger.info(f"[DRY RUN] {img.filename}: {content.title}")
+                logger.info(f"[DRY RUN] {img.filename}: {pin_title}")
             return {
                 "total": total,
                 "successful": len(unpublished),
@@ -328,17 +320,18 @@ class PinterestPublisher:
     def _publish_single_pin(self, image_info: ImageInfo) -> bool:
         """Publish a single pin using robust element finding."""
         
-        # Generate title
-        content = generate_pin_content(image_info.keywords, self.config)
-        logger.info(f"Generated title: {content.title[:50]}...")
+        # Use design title (no LLM call)
+        pin_title = self.config.title[:100]
+        logger.info(f"Using title: {pin_title[:50]}...")
         
         # Step 1: Navigate to pin-builder
         logger.info("Step 1: Navigate to pin-builder")
         if workflow_logger:
             workflow_logger.log(f"Navigating to pin-builder: {PIN_BUILDER_URL}", "INFO")
         self.page.goto(PIN_BUILDER_URL)
-        self.page.wait_for_load_state("networkidle")
-        self.page.wait_for_timeout(2000)
+        # domcontentloaded is faster than networkidle; 1s wait for form to render
+        self.page.wait_for_load_state("domcontentloaded")
+        self.page.wait_for_timeout(1000)
         
         # Verify navigation succeeded
         current_url = self.page.url
@@ -355,7 +348,7 @@ class PinterestPublisher:
         
         # Step 3: Fill title
         logger.info("Step 3: Fill title")
-        self._fill_title(content.title[:100])
+        self._fill_title(pin_title)
         
         # Step 4: Fill description
         logger.info("Step 4: Fill description")
@@ -380,7 +373,7 @@ class PinterestPublisher:
         self._close_popup()
         
         # Record success
-        self.state_manager.record_success(image_info.filename, content.title)
+        self.state_manager.record_success(image_info.filename, pin_title)
         logger.info(f"SUCCESS: {image_info.filename}")
         
         return True
@@ -433,47 +426,85 @@ class PinterestPublisher:
         logger.warning("Could not find title field with any strategy")
     
     def _fill_description(self, description: str) -> None:
-        """Fill the description field using keyboard.type (reverted for reliability)."""
+        """Fill the description field. keyboard.type strategies first (reliable), then fill/evaluate fallbacks."""
         
         # Limit description to 600 characters to avoid bugs
         if len(description) > 600:
             description = description[:600]
             logger.info(f"Description truncated to 600 characters")
         
-        # Strategy 1: Find by visible text
+        # Strategy 1 (keyboard.type): Tab from title to description
+        try:
+            self.page.keyboard.press("Tab")
+            self.page.wait_for_timeout(200)
+            self.page.keyboard.type(description, delay=KEYBOARD_TYPE_DELAY_MS)
+            msg = "Description strategy: Tab from title + keyboard.type"
+            print(f"[Pinterest] {msg}")
+            logger.info(msg)
+            return
+        except Exception as e:
+            logger.info(f"Description strategy 1 (Tab + keyboard.type) failed: {e}")
+        
+        # Strategy 2 (keyboard.type): Find by visible text
         try:
             desc_area = self.page.get_by_text("Tell everyone what your Pin is about", exact=False).first
             if desc_area.is_visible(timeout=500):
                 desc_area.click()
-                self.page.wait_for_timeout(300)
-                self.page.keyboard.type(description, delay=10)
-                logger.info("Description filled via text locator")
+                self.page.wait_for_timeout(200)
+                self.page.keyboard.type(description, delay=KEYBOARD_TYPE_DELAY_MS)
+                msg = "Description strategy: text locator + keyboard.type"
+                print(f"[Pinterest] {msg}")
+                logger.info(msg)
                 return
         except Exception as e:
-            logger.debug(f"Strategy 1 failed: {e}")
+            logger.info(f"Description strategy 2 (text locator + keyboard.type) failed: {e}")
         
-        # Strategy 2: Use Tab from title to get to description
-        try:
-            self.page.keyboard.press("Tab")
-            self.page.wait_for_timeout(300)
-            self.page.keyboard.type(description, delay=10)
-            logger.info("Description filled via Tab navigation")
-            return
-        except Exception as e:
-            logger.debug(f"Strategy 2 failed: {e}")
-        
-        # Strategy 3: Find second contenteditable
+        # Strategy 3 (keyboard.type): Second contenteditable
         try:
             desc_editor = self.page.locator('[contenteditable="true"]').nth(1)
             if desc_editor.is_visible(timeout=500):
                 desc_editor.click()
-                self.page.wait_for_timeout(300)
-                self.page.keyboard.type(description, delay=10)
-                logger.info("Description filled via second contenteditable")
+                self.page.wait_for_timeout(200)
+                self.page.keyboard.type(description, delay=KEYBOARD_TYPE_DELAY_MS)
+                msg = "Description strategy: second contenteditable + keyboard.type"
+                print(f"[Pinterest] {msg}")
+                logger.info(msg)
                 return
         except Exception as e:
-            logger.debug(f"Strategy 3 failed: {e}")
+            logger.info(f"Description strategy 3 (contenteditable nth(1) + keyboard.type) failed: {e}")
         
+        # Strategy 4 (fallback): textarea fill
+        try:
+            desc_input = self.page.locator('[data-test-id="pin-draft-description"] textarea').first
+            if desc_input.is_visible(timeout=500):
+                desc_input.click()
+                self.page.wait_for_timeout(100)
+                desc_input.fill(description)
+                msg = "Description strategy: textarea fill"
+                print(f"[Pinterest] {msg}")
+                logger.info(msg)
+                return
+        except Exception as e:
+            logger.info(f"Description strategy 4 (textarea fill) failed: {e}")
+        
+        # Strategy 5 (fallback): contenteditable evaluate
+        try:
+            desc_editor = self.page.locator('[data-test-id="pin-draft-description"] [contenteditable="true"]').first
+            if desc_editor.is_visible(timeout=500):
+                desc_editor.click()
+                self.page.wait_for_timeout(100)
+                desc_editor.evaluate(
+                    f"element => {{ element.textContent = ''; element.textContent = {json.dumps(description)}; }}"
+                )
+                desc_editor.evaluate("element => element.dispatchEvent(new Event('input', { bubbles: true }))")
+                msg = "Description strategy: contenteditable evaluate"
+                print(f"[Pinterest] {msg}")
+                logger.info(msg)
+                return
+        except Exception as e:
+            logger.info(f"Description strategy 5 (contenteditable evaluate) failed: {e}")
+        
+        print("[Pinterest] Description strategy: failed (no strategy succeeded)")
         logger.warning("Could not find description field with any strategy")
     
     def _ensure_board_selected(self) -> None:

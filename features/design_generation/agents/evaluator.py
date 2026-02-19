@@ -317,13 +317,14 @@ PROMPTS_EVALUATOR_PROMPT = """You are a strict quality evaluator for MidJourney 
 2. **Format Validation** (check EACH prompt):
    - Must be comma-separated keywords ONLY (NO sentences)
    - Each keyword should be 1-3 words max
-   - Good: "owl, mandala, forest, detailed feathers, coloring book page, clean and simple line art --v 5 --q 2 --no color --ar 1:1"
+   - Good: "owl, mandala, forest, detailed feathers, coloring book page, clean and simple line art, black and white --no color --ar 1:1"
    - Bad: "A beautiful owl sitting in a magical forest with intricate mandala patterns"
 
 3. **Required Elements** (in EVERY prompt):
    - Must contain "coloring book page"
    - Must contain "clean and simple line art"
-   - Must end with "--v 5 --q 2 --no color --ar 1:1"
+   - Must contain "black and white"
+   - Must end with "--no color --ar 1:1"
 
 ### Creative Variety (40 points)
 4. **Subject Diversity** (10 points):
@@ -406,6 +407,8 @@ def evaluate_prompts(prompts: list) -> dict:
             format_issues.append(f"Prompt {i+1} missing 'coloring book page'")
         if "clean and simple line art" not in p.lower():
             format_issues.append(f"Prompt {i+1} missing 'clean and simple line art'")
+        if "black and white" not in p.lower():
+            format_issues.append(f"Prompt {i+1} missing 'black and white'")
     
     # Prepare sample (show 10 prompts for evaluation)
     if len(prompts) > 10:

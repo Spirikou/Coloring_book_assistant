@@ -5,8 +5,27 @@ import json
 from pathlib import Path
 
 from core.persistence import save_workflow_state, load_workflow_state, list_saved_states, delete_saved_state
-from features.design_generation.workflow import run_coloring_book_agent, run_design_for_concept, create_coloring_book_graph, rerun_design_with_modifications
+from features.design_generation.workflow import (
+    run_coloring_book_agent,
+    run_design_for_concept,
+    run_design_step_for_concept,
+    create_coloring_book_graph,
+    rerun_design_with_modifications,
+    DESIGN_STEPS,
+)
 from features.design_generation.tools.content_tools import generate_concept_variations
+from features.design_generation.constants import (
+    MAX_SELECTED_CONCEPTS,
+    MIN_CONCEPT_VARIATIONS,
+    MAX_CONCEPT_VARIATIONS,
+)
+
+STEP_DISPLAY_NAMES = [
+    "Building theme context from concept",
+    "Generating title and description",
+    "Generating MidJourney prompts",
+    "Generating SEO keywords",
+]
 
 
 def render_attempt(attempt: dict, attempt_num: int, component_type: str):
@@ -151,6 +170,15 @@ def render_component_section(title: str, attempts: list, component_type: str, fi
             render_theme_attempt(attempt, i)
         else:
             render_attempt(attempt, i, component_type)
+
+
+def _render_generation_log(state: dict):
+    """Render generation log if present (for concept-based designs)."""
+    gen_log = state.get("generation_log", [])
+    if gen_log:
+        with st.expander("Generation log", expanded=False):
+            for entry in gen_log:
+                st.write(f"✓ {entry.get('message', '')}")
 
 
 def render_progress_overview(state: dict):
@@ -535,8 +563,10 @@ def _normalize_concept(theme: str, style: str, variations: list = None) -> dict:
 
 def render_concept_research_section():
     """Render the preliminary concept research section with variations and mix-and-match."""
-    st.markdown("### Preliminary Concept Research")
-    st.caption("Enter an idea to get 5 creative variations. Mix and match to create up to 3 concepts for design generation.")
+    st.markdown("### 1. Concept Research")
+    st.caption(
+        f"Enter an idea to get creative variations. Select concepts for design generation (up to {MAX_SELECTED_CONCEPTS})."
+    )
 
     if "concept_variations" not in st.session_state:
         st.session_state.concept_variations = []
@@ -551,11 +581,22 @@ def render_concept_research_section():
         key="concept_idea_input",
     )
 
-    if st.button("Generate Concept Variations", key="gen_variations_btn", disabled=st.session_state.get("is_running", False)):
+    num_variations = st.selectbox(
+        "Number of variations to generate:",
+        options=list(range(MIN_CONCEPT_VARIATIONS, MAX_CONCEPT_VARIATIONS + 1)),
+        index=0,
+        key="num_variations_select",
+    )
+
+    if st.button(
+        f"Generate {num_variations} Concept Variations",
+        key="gen_variations_btn",
+        disabled=st.session_state.get("is_running", False),
+    ):
         if idea_input.strip():
-            with st.spinner("Generating 5 creative variations..."):
+            with st.spinner(f"Generating {num_variations} creative variations..."):
                 try:
-                    variations = generate_concept_variations(idea_input.strip())
+                    variations = generate_concept_variations(idea_input.strip(), num_variations=num_variations)
                     st.session_state.concept_variations = variations
                     st.rerun()
                 except Exception as e:
@@ -564,54 +605,95 @@ def render_concept_research_section():
             st.warning("Please enter an idea first.")
 
     variations = st.session_state.concept_variations
+    selected = st.session_state.selected_concepts
+
     if variations:
-        st.markdown("#### 5 Concept Variations")
-        themes = list({(v.get("theme_concept") or v.get("mixable_components", {}).get("theme") or "").strip() for v in variations})
-        themes = [t for t in themes if t]
-        styles = list({(v.get("art_style") or v.get("mixable_components", {}).get("style") or "").strip() for v in variations})
-        styles = [s for s in styles if s]
-        if not themes:
-            themes = [""]
-        if not styles:
-            styles = [""]
+        st.markdown("#### Concept Variations")
+        st.caption("Click **Add to concepts** on any variation, or use **Add all** to select everything.")
 
-        cols = st.columns(5)
-        for i, v in enumerate(variations[:5]):
-            with cols[i]:
-                theme = v.get("theme_concept") or v.get("mixable_components", {}).get("theme", "?")
-                style = v.get("art_style") or v.get("mixable_components", {}).get("style", "?")
-                with st.container():
-                    st.markdown(f"**{theme}**")
-                    st.caption(style)
-                    st.caption(v.get("unique_angle", "")[:80] + "..." if len(v.get("unique_angle", "")) > 80 else v.get("unique_angle", ""))
-
-        st.markdown("#### Mix and Match")
-        col1, col2 = st.columns(2)
-        with col1:
-            sel_theme = st.selectbox("Theme", options=themes if themes else [""], key="mix_theme")
-        with col2:
-            sel_style = st.selectbox("Art Style", options=styles if styles else [""], key="mix_style")
-
-        if st.button("Add Custom Concept", key="add_concept_btn"):
-            if sel_theme and sel_style:
-                concept = _normalize_concept(sel_theme, sel_style, variations)
-                if len(st.session_state.selected_concepts) < 3:
+        if st.button(
+            "Add all variations",
+            key="add_all_btn",
+            disabled=st.session_state.get("is_running", False) or len(selected) >= MAX_SELECTED_CONCEPTS,
+        ):
+            existing_keys = {(c.get("theme", ""), c.get("style", "")) for c in st.session_state.selected_concepts}
+            for v in variations:
+                if len(st.session_state.selected_concepts) >= MAX_SELECTED_CONCEPTS:
+                    break
+                theme = v.get("theme_concept") or v.get("mixable_components", {}).get("theme", "")
+                style = v.get("art_style") or v.get("mixable_components", {}).get("style", "")
+                if (theme, style) not in existing_keys:
+                    concept = _normalize_concept(theme, style, variations)
                     st.session_state.selected_concepts = st.session_state.selected_concepts + [concept]
-                    st.rerun()
-                else:
-                    st.warning("Maximum 3 concepts. Remove one to add another.")
-            else:
-                st.warning("Select both theme and style.")
+                    existing_keys.add((theme, style))
+            st.rerun()
 
-        selected = st.session_state.selected_concepts
-        if selected:
-            st.markdown("**Selected concepts (%d/3):**" % len(selected))
-            for idx, c in enumerate(selected):
-                with st.expander(f"Concept {idx + 1}: {c.get('theme', '')} | {c.get('style', '')}", expanded=False):
-                    st.caption(c.get("unique_angle", ""))
-                    if st.button("Remove", key=f"remove_concept_{idx}"):
-                        st.session_state.selected_concepts = [x for i, x in enumerate(selected) if i != idx]
+        cards_per_row = 3
+        for row_start in range(0, len(variations), cards_per_row):
+            cols = st.columns(cards_per_row)
+            for col_idx, col in enumerate(cols):
+                i = row_start + col_idx
+                if i >= len(variations):
+                    break
+                v = variations[i]
+                with col:
+                    theme = v.get("theme_concept") or v.get("mixable_components", {}).get("theme", "?")
+                    style = v.get("art_style") or v.get("mixable_components", {}).get("style", "?")
+                    with st.container(border=True):
+                        st.markdown(f"**{theme}**")
+                        st.caption(style)
+                        angle = v.get("unique_angle", "")
+                        st.caption(angle[:100] + "..." if len(angle) > 100 else angle)
+                        if st.button(
+                            "Add to concepts",
+                            key=f"add_variation_{i}",
+                            disabled=len(selected) >= MAX_SELECTED_CONCEPTS or st.session_state.get("is_running", False),
+                        ):
+                            existing_keys = {(c.get("theme", ""), c.get("style", "")) for c in st.session_state.selected_concepts}
+                            if (theme, style) not in existing_keys:
+                                concept = _normalize_concept(theme, style, variations)
+                                st.session_state.selected_concepts = st.session_state.selected_concepts + [concept]
+                            st.rerun()
+
+        with st.expander("Create custom concept (mix and match)", expanded=False):
+            themes = list(
+                {(v.get("theme_concept") or v.get("mixable_components", {}).get("theme") or "").strip() for v in variations}
+            )
+            themes = [t for t in themes if t] or [""]
+            styles = list(
+                {(v.get("art_style") or v.get("mixable_components", {}).get("style") or "").strip() for v in variations}
+            )
+            styles = [s for s in styles if s] or [""]
+            col1, col2 = st.columns(2)
+            with col1:
+                sel_theme = st.selectbox("Theme", options=themes, key="mix_theme")
+            with col2:
+                sel_style = st.selectbox("Art Style", options=styles, key="mix_style")
+            if st.button("Add Custom Concept", key="add_concept_btn"):
+                if sel_theme and sel_style:
+                    concept = _normalize_concept(sel_theme, sel_style, variations)
+                    if len(st.session_state.selected_concepts) < MAX_SELECTED_CONCEPTS:
+                        st.session_state.selected_concepts = st.session_state.selected_concepts + [concept]
                         st.rerun()
+                    else:
+                        st.warning(f"Maximum {MAX_SELECTED_CONCEPTS} concepts. Remove one to add another.")
+                else:
+                    st.warning("Select both theme and style.")
+
+    st.markdown("#### Selected Concepts")
+    st.caption(f"{len(selected)} / {MAX_SELECTED_CONCEPTS} concepts selected")
+    if selected:
+        st.progress(min(1.0, len(selected) / MAX_SELECTED_CONCEPTS))
+        for idx, c in enumerate(selected):
+            theme = c.get("theme", "")
+            style = c.get("style", "")
+            chip_col1, chip_col2 = st.columns([6, 1])
+            with chip_col1:
+                st.markdown(f"**{idx + 1}.** {theme} | {style}")
+            with chip_col2:
+                if st.button("Remove", key=f"remove_concept_{idx}"):
+                    st.session_state.selected_concepts = [x for i, x in enumerate(selected) if i != idx]
+                    st.rerun()
 
     return variations, st.session_state.selected_concepts
 
@@ -634,75 +716,172 @@ def render_design_generation_tab():
 
     if selected_concepts:
         st.markdown("---")
-        st.subheader("Generate Designs for Selected Concepts")
-        st.caption("Generate a full design package (title, description, prompts, keywords) for each concept.")
+        st.markdown("### 2. Generate Designs for Selected Concepts")
+        st.caption(
+            "Generate a full design package (title, description, prompts, keywords) for each concept. "
+            "~2–3 min per design."
+        )
+
+        if "generation_queue" not in st.session_state:
+            st.session_state.generation_queue = []
+        if "generation_results" not in st.session_state:
+            st.session_state.generation_results = []
+        if "generation_current_index" not in st.session_state:
+            st.session_state.generation_current_index = 0
+        if "generation_in_progress" not in st.session_state:
+            st.session_state.generation_in_progress = False
+        if "generation_step_state" not in st.session_state:
+            st.session_state.generation_step_state = None
+        if "generation_current_step" not in st.session_state:
+            st.session_state.generation_current_step = 0
+        if "generation_single_insert_idx" not in st.session_state:
+            st.session_state.generation_single_insert_idx = None
+
         n_concepts = len(selected_concepts)
-        if st.button(f"Generate All {n_concepts} Designs", type="primary", key="gen_all_btn", disabled=st.session_state.get("is_running", False)):
+        if st.button(
+            f"Generate All {n_concepts} Designs",
+            type="primary",
+            key="gen_all_btn",
+            disabled=st.session_state.get("is_running", False) or st.session_state.get("generation_in_progress", False),
+        ):
+            st.session_state.generation_queue = list(selected_concepts)
+            st.session_state.generation_results = []
+            st.session_state.generation_current_index = 0
+            st.session_state.generation_in_progress = True
+            st.session_state.generation_step_state = None
+            st.session_state.generation_current_step = 0
+            st.session_state.generation_single_insert_idx = None
             st.session_state.is_running = True
-            designs = []
-            for idx, concept in enumerate(selected_concepts):
-                with st.spinner(f"Generating design {idx + 1}/{n_concepts}: {concept.get('theme', '')} | {concept.get('style', '')}..."):
-                    try:
-                        state = run_design_for_concept(concept)
-                        state["concept_source"] = concept
-                        designs.append(state)
-                        try:
-                            save_workflow_state(state)
-                        except Exception:
-                            pass
-                    except Exception as e:
-                        st.error(f"Error generating design {idx + 1}: {e}")
-            st.session_state.generated_designs = designs
-            st.session_state.is_running = False
             st.rerun()
+
+        if st.session_state.get("generation_in_progress") and st.session_state.generation_queue:
+            queue = st.session_state.generation_queue
+            results = st.session_state.generation_results
+            current_idx = st.session_state.generation_current_index
+            step_state = st.session_state.generation_step_state
+            step_idx = st.session_state.generation_current_step
+
+            if current_idx < len(queue):
+                concept = queue[current_idx]
+                theme = concept.get("theme", "")
+                style = concept.get("style", "")
+
+                if step_idx < len(DESIGN_STEPS):
+                    step_name = DESIGN_STEPS[step_idx]
+                    completed_count = step_idx
+
+                    with st.status(
+                        f"Design {current_idx + 1} of {len(queue)}: {theme} | {style}",
+                        state="running",
+                        expanded=True,
+                    ) as status:
+                        for i, name in enumerate(STEP_DISPLAY_NAMES):
+                            if i < completed_count:
+                                st.write(f"✓ {name}")
+                            elif i == completed_count:
+                                st.write(f"⟳ {name}")
+                            else:
+                                st.write(f"○ {name}")
+
+                        try:
+                            new_state = run_design_step_for_concept(concept, step_name, step_state)
+                            st.session_state.generation_step_state = new_state
+
+                            if step_name == "keywords":
+                                new_results = results + [new_state]
+                                st.session_state.generation_results = new_results
+                                try:
+                                    save_workflow_state(new_state)
+                                except Exception:
+                                    pass
+                                st.session_state.generation_step_state = None
+                                st.session_state.generation_current_step = 0
+                                st.session_state.generation_current_index = current_idx + 1
+                                if st.session_state.generation_current_index >= len(queue):
+                                    st.session_state.generation_in_progress = False
+                                    st.session_state.is_running = False
+                                    single_idx = st.session_state.generation_single_insert_idx
+                                    if single_idx is not None:
+                                        designs = list(st.session_state.generated_designs)
+                                        while len(designs) <= single_idx:
+                                            designs.append({})
+                                        designs[single_idx] = new_results[0]
+                                        st.session_state.generated_designs = designs
+                                        st.session_state.generation_single_insert_idx = None
+                                    else:
+                                        st.session_state.generated_designs = new_results
+                                    status.update(label="All designs complete!", state="complete")
+                            else:
+                                st.session_state.generation_current_step = step_idx + 1
+                        except Exception as e:
+                            st.error(f"Error generating design {current_idx + 1}: {e}")
+                            st.session_state.generation_in_progress = False
+                            st.session_state.is_running = False
+
+                st.rerun()
+            else:
+                st.session_state.generation_in_progress = False
+                st.session_state.is_running = False
+                single_idx = st.session_state.generation_single_insert_idx
+                results = st.session_state.generation_results
+                if single_idx is not None and results:
+                    designs = list(st.session_state.generated_designs)
+                    while len(designs) <= single_idx:
+                        designs.append({})
+                    designs[single_idx] = results[0]
+                    st.session_state.generated_designs = designs
+                    st.session_state.generation_single_insert_idx = None
+                else:
+                    st.session_state.generated_designs = results
+                st.rerun()
+
+        generated_designs = st.session_state.get("generated_designs", [])
+
         for idx, concept in enumerate(selected_concepts):
             with st.expander(f"Concept {idx + 1}: {concept.get('theme', '')} | {concept.get('style', '')}", expanded=(idx < len(generated_designs))):
                 if idx < len(generated_designs):
                     design = generated_designs[idx]
                     st.markdown(f"**{design.get('title', 'Untitled')}**")
                     st.caption(f"{len(design.get('midjourney_prompts', []))} prompts | {len(design.get('seo_keywords', []))} keywords")
+                    gen_log = design.get("generation_log", [])
+                    if gen_log:
+                        with st.expander("Generation log", expanded=False):
+                            for entry in gen_log:
+                                st.write(f"✓ {entry.get('message', '')}")
                     col_a, col_b = st.columns(2)
                     with col_a:
                         if st.button("Use this design", key=f"use_design_{idx}"):
-                            st.session_state.workflow_state = design
+                            design_copy = dict(design)
+                            design_images_folders = st.session_state.get("mj_design_images_folders", {})
+                            if idx in design_images_folders:
+                                design_copy["images_folder_path"] = design_images_folders[idx]
+                            st.session_state.workflow_state = design_copy
                             st.rerun()
                     with col_b:
                         if st.button("Regenerate", key=f"regen_concept_{idx}"):
+                            st.session_state.generation_queue = [concept]
+                            st.session_state.generation_results = []
+                            st.session_state.generation_current_index = 0
+                            st.session_state.generation_in_progress = True
+                            st.session_state.generation_step_state = None
+                            st.session_state.generation_current_step = 0
+                            st.session_state.generation_single_insert_idx = idx
                             st.session_state.is_running = True
-                            with st.spinner("Regenerating..."):
-                                try:
-                                    new_state = run_design_for_concept(concept)
-                                    new_state["concept_source"] = concept
-                                    designs = list(generated_designs)
-                                    designs[idx] = new_state
-                                    st.session_state.generated_designs = designs
-                                    save_workflow_state(new_state)
-                                    st.session_state.is_running = False
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(str(e))
-                                    st.session_state.is_running = False
+                            st.rerun()
                 else:
                     if st.button(f"Generate design {idx + 1}", key=f"gen_single_{idx}", disabled=st.session_state.get("is_running", False)):
+                        st.session_state.generation_queue = [concept]
+                        st.session_state.generation_results = []
+                        st.session_state.generation_current_index = 0
+                        st.session_state.generation_in_progress = True
+                        st.session_state.generation_step_state = None
+                        st.session_state.generation_current_step = 0
+                        st.session_state.generation_single_insert_idx = idx
                         st.session_state.is_running = True
-                        with st.spinner("Generating..."):
-                            try:
-                                state = run_design_for_concept(concept)
-                                state["concept_source"] = concept
-                                designs = list(generated_designs)
-                                while len(designs) <= idx:
-                                    designs.append({})
-                                designs[idx] = state
-                                st.session_state.generated_designs = designs
-                                save_workflow_state(state)
-                                st.session_state.is_running = False
-                                st.rerun()
-                            except Exception as e:
-                                st.error(str(e))
-                                st.session_state.is_running = False
+                        st.rerun()
 
     st.markdown("---")
-    st.subheader("Or Describe Your Coloring Book (Direct)")
+    st.markdown("### 3. Or Describe Your Coloring Book (Direct)")
     user_request = st.text_area(
         "What kind of coloring book would you like to create?",
         placeholder="Example: A forest animals coloring book for adults with intricate mandala patterns...",
@@ -828,5 +1007,6 @@ def render_design_generation_tab():
 
     if workflow_state and workflow_state.get("status") == "complete":
         render_progress_overview(workflow_state)
+        _render_generation_log(workflow_state)
         render_final_results_compact(workflow_state)
         render_attempt_history_collapsed(workflow_state)
