@@ -54,13 +54,17 @@ def process_prompt_web(state: AgentState) -> AgentState:
                 cfg = get_file_config_overrides()
                 queue_poll = cfg.get("queue_poll_interval_sec", 5)
                 queue_max_wait = cfg.get("queue_drain_max_wait_sec", 600)
+                queue_stuck_threshold = cfg.get("queue_stuck_threshold_sec", 120)
+                queue_stuck_min_elapsed = cfg.get("queue_stuck_min_elapsed_sec", 180)
                 stop_check = lambda: state.get("stop_requested", False)
                 logger.info("Batch boundary: waiting for queue to drain before prompt %d", current_index + 1)
-                controller.wait_until_queue_empty(
+                _ready, _initial_queue, _elapsed, _queue_drained = controller.wait_until_queue_empty(
                     progress_callback=lambda _: None,
                     stop_check=stop_check,
                     poll_interval_sec=queue_poll,
                     max_wait_sec=queue_max_wait,
+                    stuck_threshold_sec=queue_stuck_threshold,
+                    stuck_min_elapsed_sec=queue_stuck_min_elapsed,
                 )
 
         paths = controller.process_prompt(prompt, output_folder, attempt)

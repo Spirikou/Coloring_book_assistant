@@ -19,6 +19,50 @@ from integrations.midjourney.utils.logging_config import logger
 RATE_LIMIT_ERROR_PATTERNS = ("queue", "limit", "too many", "rate", "wait")
 
 
+def _compute_finalization_wait_sec(
+    cfg: dict,
+    initial_queue: int | None,
+    elapsed_sec: float,
+    queue_drained: bool = True,
+) -> float:
+    """Compute finalization wait: extrapolate from queue drain or use fallback.
+    Only extrapolates when queue_drained is True (queue actually reached 0).
+    """
+    processing_slots = cfg.get("processing_slots", 3)
+    min_extrapolation_queue = cfg.get("min_extrapolation_queue", 4)
+    fallback_sec = cfg.get("finalization_wait_sec", 100)
+    min_wait = cfg.get("finalization_wait_min_sec", 30)
+    max_wait = cfg.get("finalization_wait_max_sec", 180)
+
+    if (
+        queue_drained
+        and initial_queue is not None
+        and initial_queue >= min_extrapolation_queue
+        and elapsed_sec > 0
+    ):
+        sec_per_item = elapsed_sec / initial_queue
+        extrapolated = processing_slots * sec_per_item
+        finalization_sec = max(min_wait, min(max_wait, extrapolated))
+        logger.info(
+            "[Queue TRACE] Extrapolated finalization: %d items in %.1fs -> %.1fs/item, wait %.1fs for %d slots",
+            initial_queue,
+            elapsed_sec,
+            sec_per_item,
+            finalization_sec,
+            processing_slots,
+        )
+        return finalization_sec
+    else:
+        logger.info(
+            "[Queue TRACE] Using fallback finalization: %.1fs (queue_drained=%s, queue=%s, elapsed=%.1fs)",
+            fallback_sec,
+            queue_drained,
+            initial_queue,
+            elapsed_sec or 0,
+        )
+        return fallback_sec
+
+
 def run_publish_thread(
     prompts: list[str],
     button_coordinates: dict,
@@ -45,6 +89,8 @@ def run_publish_thread(
     retry_max = cfg.get("rate_limit_retry_max", 3)
     queue_poll = cfg.get("queue_poll_interval_sec", 5)
     queue_max_wait = cfg.get("queue_drain_max_wait_sec", 600)
+    queue_stuck_threshold = cfg.get("queue_stuck_threshold_sec", 120)
+    queue_stuck_min_elapsed = cfg.get("queue_stuck_min_elapsed_sec", 180)
     queue_error_pause = cfg.get("queue_error_retry_pause_sec", retry_pause)
 
     for attempt in range(retry_max + 1):
@@ -77,6 +123,9 @@ def run_publish_thread(
             )
             progress_store["total_wait_all"] = total_wait_all
 
+            initial_queue: int | None = None
+            elapsed_sec = 0.0
+            queue_drained = False
             for batch_start in range(0, len(prompts), 10):
                 if stop_check():
                     status_store["publish_status"] = "stopped"
@@ -119,11 +168,13 @@ def run_publish_thread(
                 progress_store["images_estimated"] = total_images
                 progress_store["batch_current"] = batch_idx + 1
                 progress_store["batch_total"] = num_batches
-                ready = controller.wait_until_queue_empty(
+                ready, initial_queue, elapsed_sec, queue_drained = controller.wait_until_queue_empty(
                     progress_callback=wait_progress_cb,
                     stop_check=stop_check,
                     poll_interval_sec=queue_poll,
                     max_wait_sec=queue_max_wait,
+                    stuck_threshold_sec=queue_stuck_threshold,
+                    stuck_min_elapsed_sec=queue_stuck_min_elapsed,
                 )
                 if not ready:
                     status_store["publish_status"] = "stopped"
@@ -131,7 +182,9 @@ def run_publish_thread(
                     return
 
                 if batch_start + 10 < len(prompts) and not stop_check():
-                    inter_batch_sec = cfg.get("finalization_wait_sec", 30)
+                    inter_batch_sec = _compute_finalization_wait_sec(
+                        cfg, initial_queue, elapsed_sec, queue_drained
+                    )
                     progress_store["phase"] = "finalize"
                     progress_store["elapsed"] = 0
                     progress_store["total"] = inter_batch_sec
@@ -144,7 +197,9 @@ def run_publish_thread(
                         progress_store["queue_count"] = controller.get_queue_count()
                         time.sleep(poll_sec)
 
-            finalization_sec = cfg.get("finalization_wait_sec", 30)
+            finalization_sec = _compute_finalization_wait_sec(
+                cfg, initial_queue, elapsed_sec, queue_drained
+            )
             if finalization_sec > 0 and not stop_check():
                 progress_store["phase"] = "finalize"
                 progress_store["elapsed"] = 0
@@ -207,6 +262,8 @@ def run_uxd_action_thread(
     retry_max = cfg.get("rate_limit_retry_max", 3)
     queue_poll = cfg.get("queue_poll_interval_sec", 5)
     queue_max_wait = cfg.get("queue_drain_max_wait_sec", 600)
+    queue_stuck_threshold = cfg.get("queue_stuck_threshold_sec", 120)
+    queue_stuck_min_elapsed = cfg.get("queue_stuck_min_elapsed_sec", 180)
 
     for attempt in range(retry_max + 1):
         try:
@@ -231,6 +288,9 @@ def run_uxd_action_thread(
             progress_store["uxd_total_wait_all"] = total_wait_all
 
             last_processed_url: str | None = None
+            initial_queue: int | None = None
+            elapsed_sec = 0.0
+            queue_drained = False
             for batch_start in range(0, count, 10):
                 if stop_check():
                     status_store["uxd_action_status"] = "stopped"
@@ -242,14 +302,31 @@ def run_uxd_action_thread(
                     time.sleep(cfg.get("waits", {}).get("scroll_before_batch_sec", 1))
 
                 batch_size = min(10, count - batch_start)
-                progress_store["uxd_batch_current"] = batch_start // 10 + 1
+                batch_num = batch_start // 10 + 1
+                progress_store["uxd_batch_current"] = batch_num
                 progress_store["phase"] = "click"
+                logger.info(
+                    "[Upscale TRACE] Batch %d/%d: start_index=%d, batch_size=%d, resuming=%s, last_url=%s",
+                    batch_num,
+                    num_batches,
+                    batch_start,
+                    batch_size,
+                    last_processed_url is not None,
+                    (last_processed_url[:80] + "..." if last_processed_url and len(last_processed_url) > 80 else last_processed_url) or "None",
+                )
                 _, last_processed_url = controller.click_button_first_n(
                     button_keys, batch_size, output_folder, stem="ui_batch",
                     stop_check=stop_check,
                     start_index=batch_start,
                     last_processed_url=last_processed_url,
+                    total_count=count,
                 )
+                if last_processed_url:
+                    logger.info(
+                        "[Upscale TRACE] Batch %d done: last_processed_url=%s",
+                        batch_num,
+                        last_processed_url[:100] + ("..." if len(last_processed_url) > 100 else ""),
+                    )
                 if stop_check():
                     status_store["uxd_action_status"] = "stopped"
                     controller.close()
@@ -266,11 +343,13 @@ def run_uxd_action_thread(
                 progress_store["images_estimated"] = total_new_images
                 progress_store["uxd_batch_current"] = batch_start // 10 + 1
                 progress_store["uxd_total_batches"] = num_batches
-                ready = controller.wait_until_queue_empty(
+                ready, initial_queue, elapsed_sec, queue_drained = controller.wait_until_queue_empty(
                     progress_callback=uxd_wait_progress_cb,
                     stop_check=stop_check,
                     poll_interval_sec=queue_poll,
                     max_wait_sec=queue_max_wait,
+                    stuck_threshold_sec=queue_stuck_threshold,
+                    stuck_min_elapsed_sec=queue_stuck_min_elapsed,
                 )
                 if not ready:
                     status_store["uxd_action_status"] = "stopped"
@@ -278,7 +357,9 @@ def run_uxd_action_thread(
                     return
 
                 if batch_start + 10 < count and not stop_check():
-                    inter_batch_sec = cfg.get("finalization_wait_sec", 30)
+                    inter_batch_sec = _compute_finalization_wait_sec(
+                        cfg, initial_queue, elapsed_sec, queue_drained
+                    )
                     progress_store["phase"] = "finalize"
                     progress_store["elapsed"] = 0
                     progress_store["total"] = inter_batch_sec
@@ -292,7 +373,9 @@ def run_uxd_action_thread(
                         progress_store["queue_count"] = controller.get_queue_count()
                         time.sleep(poll_sec)
 
-            finalization_sec = cfg.get("finalization_wait_sec", 30)
+            finalization_sec = _compute_finalization_wait_sec(
+                cfg, initial_queue, elapsed_sec, queue_drained
+            )
             if finalization_sec > 0 and not stop_check():
                 progress_store["phase"] = "finalize"
                 progress_store["elapsed"] = 0

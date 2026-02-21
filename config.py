@@ -28,8 +28,14 @@ MIDJOURNEY_CONFIG: dict[str, Any] = {
         "retry_max": 3,
         "queue_poll_interval_sec": 5,
         "queue_drain_max_wait_sec": 600,
+        "queue_stuck_threshold_sec": 0,  # Set 0 to disable; sec queue unchanged before assuming stuck
+        "queue_stuck_min_elapsed_sec": 180,  # Min total wait before stuck can trigger (avoids slow-processing false positive)
         "queue_error_retry_pause_sec": 90,
         "finalization_wait_sec": 100,
+        "processing_slots": 3,
+        "min_extrapolation_queue": 4,
+        "finalization_wait_min_sec": 30,
+        "finalization_wait_max_sec": 180,
     },
     "waits": {
         "after_navigate_sec": 2,
@@ -45,6 +51,7 @@ MIDJOURNEY_CONFIG: dict[str, Any] = {
         "detail_view_ready_sec": 2,
         "after_upscale_click_sec": 1,
         "after_arrow_right_sec": 1,
+        "resume_arrow_right_wait_sec": 2.5,
         "wait_for_upscaled_sec": 15,
         "images_fallback_first_sec": 65,
         "images_fallback_poll_sec": 5,
@@ -117,10 +124,22 @@ def _load_midjourney_overrides_from_json(config_path: Path) -> dict[str, Any]:
             overrides["queue_poll_interval_sec"] = int(rate["queue_poll_interval_sec"])
         if "queue_drain_max_wait_sec" in rate:
             overrides["queue_drain_max_wait_sec"] = int(rate["queue_drain_max_wait_sec"])
+        if "queue_stuck_threshold_sec" in rate:
+            overrides["queue_stuck_threshold_sec"] = int(rate["queue_stuck_threshold_sec"])
+        if "queue_stuck_min_elapsed_sec" in rate:
+            overrides["queue_stuck_min_elapsed_sec"] = int(rate["queue_stuck_min_elapsed_sec"])
         if "queue_error_retry_pause_sec" in rate:
             overrides["queue_error_retry_pause_sec"] = int(rate["queue_error_retry_pause_sec"])
         if "finalization_wait_sec" in rate:
             overrides["finalization_wait_sec"] = int(rate["finalization_wait_sec"])
+        if "processing_slots" in rate:
+            overrides["processing_slots"] = int(rate["processing_slots"])
+        if "min_extrapolation_queue" in rate:
+            overrides["min_extrapolation_queue"] = int(rate["min_extrapolation_queue"])
+        if "finalization_wait_min_sec" in rate:
+            overrides["finalization_wait_min_sec"] = int(rate["finalization_wait_min_sec"])
+        if "finalization_wait_max_sec" in rate:
+            overrides["finalization_wait_max_sec"] = int(rate["finalization_wait_max_sec"])
     waits = data.get("waits", {})
     if waits and isinstance(waits, dict):
         overrides["waits"] = {k: v for k, v in waits.items() if v is not None}
@@ -159,8 +178,14 @@ def get_midjourney_config(config_path: Path | None = None) -> dict[str, Any]:
         "rate_limit_retry_max": cfg["rate_limiting"].get("retry_max", 3),
         "queue_poll_interval_sec": cfg["rate_limiting"].get("queue_poll_interval_sec", 5),
         "queue_drain_max_wait_sec": cfg["rate_limiting"].get("queue_drain_max_wait_sec", 600),
+        "queue_stuck_threshold_sec": cfg["rate_limiting"].get("queue_stuck_threshold_sec", 120),
+        "queue_stuck_min_elapsed_sec": cfg["rate_limiting"].get("queue_stuck_min_elapsed_sec", 180),
         "queue_error_retry_pause_sec": cfg["rate_limiting"].get("queue_error_retry_pause_sec", 90),
         "finalization_wait_sec": cfg["rate_limiting"].get("finalization_wait_sec", 30),
+        "processing_slots": cfg["rate_limiting"].get("processing_slots", 3),
+        "min_extrapolation_queue": cfg["rate_limiting"].get("min_extrapolation_queue", 4),
+        "finalization_wait_min_sec": cfg["rate_limiting"].get("finalization_wait_min_sec", 30),
+        "finalization_wait_max_sec": cfg["rate_limiting"].get("finalization_wait_max_sec", 180),
         "waits": dict(cfg.get("waits", {})),
         "button_coordinates": dict(cfg.get("button_coordinates", {})),
         "coordinates_viewport": dict(cfg.get("coordinates_viewport", {"width": 1920, "height": 1080})),

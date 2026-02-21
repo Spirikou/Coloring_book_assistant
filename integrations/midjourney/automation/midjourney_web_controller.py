@@ -288,6 +288,36 @@ class MidjourneyWebController:
                     time.sleep(retry_delay)
         return False
 
+    def _wait_for_carousel_advance(self, previous_image_url: str, max_wait_sec: float = 8) -> bool:
+        """After ArrowRight, poll until the detail view shows a different image.
+        Compares normalized image IDs. Returns True if image changed, False on timeout.
+        """
+        if self.dry_run or not self.page:
+            return True
+        prev_id = self._normalize_image_id(previous_image_url) if previous_image_url else ""
+        if not prev_id:
+            return True
+        poll_interval = 0.5
+        elapsed = 0.0
+        while elapsed < max_wait_sec:
+            url = self._get_image_url_from_detail_view(0)
+            if url:
+                current_id = self._normalize_image_id(url)
+                if current_id and current_id != prev_id:
+                    logger.info(
+                        "[Upscale TRACE] Carousel advanced after %.1fs",
+                        elapsed,
+                    )
+                    return True
+            time.sleep(poll_interval)
+            elapsed += poll_interval
+        logger.warning(
+            "[Upscale TRACE] Carousel may not have advanced after %.1fs (prev_id=%s)",
+            max_wait_sec,
+            prev_id[:40] + "..." if len(prev_id) > 40 else prev_id,
+        )
+        return False
+
     def _normalize_image_id(self, url: str) -> str:
         """Extract stable identifier for matching grid thumbnail vs detail URL.
 
@@ -469,34 +499,82 @@ class MidjourneyWebController:
         stop_check: Callable[[], bool],
         poll_interval_sec: float = 5,
         max_wait_sec: float = 600,
-    ) -> bool:
-        """Poll until queue count is 0 or element gone. Returns True when ready, False on timeout or stop.
+        stuck_threshold_sec: float = 0,
+        stuck_min_elapsed_sec: float = 0,
+    ) -> tuple[bool, int | None, float, bool]:
+        """Poll until queue count is 0 or element gone. Returns (ready, initial_queue, elapsed_sec, queue_drained).
+        ready: True if queue drained, False on timeout/stop.
+        initial_queue: First non-zero queue count observed (or None if queue was already 0).
+        elapsed_sec: Time from start until queue=0 (or until return on timeout/stop).
+        queue_drained: True only when count reached 0; False when exited via stuck/None/timeout/stop.
         After 3 consecutive None from get_queue_count, treats as ready (selector may have changed).
+        If stuck_threshold_sec > 0 and queue count is unchanged for that duration, treats as ready
+        (handles queue showing other users' jobs that never drain). Set stuck_threshold_sec=0 to disable.
+        stuck_min_elapsed_sec: only consider stuck if total elapsed >= this (avoids treating slow processing as stuck).
         """
         if self.dry_run:
             progress_callback(0)
-            return True
+            return (True, None, 0.0, True)
         start = time.time()
         none_count = 0
         NONE_FALLBACK_THRESHOLD = 3
+        initial_queue: int | None = None
+        last_logged_count: int | None = -1
+        poll_num = 0
+        last_count: int | None = None
+        last_count_change_time: float = start
         while (time.time() - start) < max_wait_sec:
             if stop_check():
-                return False
+                elapsed = time.time() - start
+                return (False, initial_queue, elapsed, False)
             count = self.get_queue_count()
             progress_callback(count)
+            if count is not None and count > 0 and initial_queue is None:
+                initial_queue = count
+            if count != last_logged_count or (poll_num % 6 == 0 and count is not None):
+                logger.info(
+                    "[Queue TRACE] queue=%s elapsed=%.1fs",
+                    count if count is not None else "?",
+                    time.time() - start,
+                )
+                last_logged_count = count
+            poll_num += 1
             if count == 0:
-                logger.info("Queue empty after %.1fs", time.time() - start)
-                return True
+                elapsed = time.time() - start
+                logger.info("Queue empty after %.1fs", elapsed)
+                return (True, initial_queue, elapsed, True)
             if count is None:
                 none_count += 1
                 if none_count >= NONE_FALLBACK_THRESHOLD:
-                    logger.info("Queue indicator unavailable after %d polls, assuming ready", none_count)
-                    return True
+                    elapsed = time.time() - start
+                    logger.info(
+                        "Queue indicator unavailable after %d polls, assuming ready",
+                        none_count,
+                    )
+                    return (True, initial_queue, elapsed, False)
             else:
                 none_count = 0
+                if count != last_count:
+                    last_count = count
+                    last_count_change_time = time.time()
+                elif (
+                    stuck_threshold_sec > 0
+                    and (time.time() - last_count_change_time) >= stuck_threshold_sec
+                    and (time.time() - start) >= stuck_min_elapsed_sec
+                ):
+                    elapsed = time.time() - start
+                    logger.info(
+                        "Queue stuck at %d for %.1fs (threshold %.1fs, min_elapsed %.1fs), assuming our batch done",
+                        count,
+                        time.time() - last_count_change_time,
+                        stuck_threshold_sec,
+                        stuck_min_elapsed_sec,
+                    )
+                    return (True, initial_queue, elapsed, False)
             time.sleep(poll_interval_sec)
+        elapsed = time.time() - start
         logger.warning("wait_until_queue_empty timed out after %.1fs", max_wait_sec)
-        return False
+        return (False, initial_queue, elapsed, False)
 
     def submit_prompt(self, prompt: str) -> None:
         """Enter prompt and submit."""
@@ -629,17 +707,17 @@ class MidjourneyWebController:
         last_processed_url: str | None = None,
         keep_detail_view_open: bool = False,
         resume_from_detail_view: bool = False,
+        total_count: int | None = None,
     ) -> tuple[list[Path] | None, str | None]:
         """Click Creation Actions button(s) for images. Returns (paths for download or None, last_processed_url).
 
-        If last_processed_url is provided (for batch resume): tries navigate-to-URL first (jobs/{id}?index={n}).
-        If that opens the detail view, ArrowRight once and continue. Else falls back to grid lookup by URL
-        or job ID, then position-based (first image + start_index ArrowRight).
+        If last_processed_url is provided (for batch resume): navigates to that URL, which points to the
+        first image of this batch. No skip logic needed.
 
-        Prefer storing page.url (jobs URL) when in detail view for reliable resume; falls back to image URL.
+        At end of upscale batch: if more batches remain (start_index + count < total_count), ArrowRight
+        once to land on the first image of the next batch, then capture that URL for resume.
 
-        keep_detail_view_open: if True, do not press Escape (caller needs to see queue). For upscale batches
-        we always close so the queue is visible; download phase does not use this.
+        keep_detail_view_open: if True, do not press Escape (caller needs to see queue).
         """
         keys = [button_keys] if isinstance(button_keys, str) else list(button_keys)
         if not keys:
@@ -656,7 +734,7 @@ class MidjourneyWebController:
                 return ([] if key == "download" else None, None)
 
         imgs = self.page.locator(SELECTORS["image_thumbnail"])
-        if imgs.count() < 1 and not resume_from_detail_view:
+        if imgs.count() < 1 and not resume_from_detail_view and not last_processed_url:
             logger.warning("No images found")
             return ([] if "download" in keys else None, None)
 
@@ -666,21 +744,24 @@ class MidjourneyWebController:
 
         try:
             if last_processed_url:
+                logger.info(
+                    "[Upscale TRACE] Resume: last_processed_url=%s (start_index=%d, first image of batch)",
+                    last_processed_url[:100] + ("..." if len(last_processed_url) > 100 else ""),
+                    start_index,
+                )
                 opened = self._navigate_to_image_by_url(last_processed_url)
                 if opened:
+                    logger.info("[Upscale TRACE] Resume strategy: URL navigation OK, starting batch")
                     detail = self.page.locator(SELECTORS["detail_view"]).first
                     time.sleep(self._w("detail_view_ready_sec", 2))
-                    try:
-                        detail.focus()
-                    except Exception:
-                        pass
-                    self.page.keyboard.press("ArrowRight")
-                    time.sleep(self._w("after_arrow_right_sec", 1))
                 else:
+                    logger.info(
+                        "[Upscale TRACE] Resume strategy: URL navigation failed, trying grid lookup"
+                    )
                     img_loc, match_type = self._find_grid_image_by_url(last_processed_url)
                     if img_loc is not None:
                         logger.info(
-                            "Resumed via grid lookup (matched by %s)",
+                            "[Upscale TRACE] Resume strategy: grid lookup (matched by %s), starting batch",
                             match_type or "url",
                         )
                         img_loc.scroll_into_view_if_needed()
@@ -689,26 +770,31 @@ class MidjourneyWebController:
                         detail = self.page.locator(SELECTORS["detail_view"]).first
                         detail.wait_for(state="visible", timeout=5000)
                         time.sleep(self._w("detail_view_ready_sec", 2))
-                        try:
-                            detail.focus()
-                        except Exception:
-                            pass
-                        self.page.keyboard.press("ArrowRight")
-                        time.sleep(self._w("after_arrow_right_sec", 1))
                     else:
                         logger.info(
-                            "Resumed via position fallback (start_index=%d)",
-                            start_index,
+                            "[Upscale TRACE] Resume strategy: grid lookup failed, using position fallback"
                         )
                         grid_order = str(
                             self._waits.get("grid_order", "newest_first")
                         ).lower()
                         total = imgs.count()
                         if grid_order == "oldest_first" and start_index < total:
+                            click_idx = start_index
+                        elif grid_order == "newest_first" and total > 0:
+                            click_idx = max(0, total - 1 - start_index)
+                        else:
+                            click_idx = 0
+                        logger.info(
+                            "[Upscale TRACE] Resume strategy: position fallback (start_index=%d, grid_order=%s, total=%d, clicked nth=%d)",
+                            start_index,
+                            grid_order,
+                            total,
+                            click_idx,
+                        )
+                        if grid_order == "oldest_first" and start_index < total:
                             imgs.nth(start_index).click()
                         elif grid_order == "newest_first" and total > 0:
-                            idx = max(0, total - 1 - start_index)
-                            imgs.nth(idx).click()
+                            imgs.nth(click_idx).click()
                         else:
                             imgs.nth(0).click()
                         time.sleep(2)
@@ -724,6 +810,11 @@ class MidjourneyWebController:
                                 self.page.keyboard.press("ArrowRight")
                                 time.sleep(self._w("after_arrow_right_sec", 1))
             else:
+                logger.info(
+                    "[Upscale TRACE] First batch: clicking nth(0), ArrowRight %d times to image %d",
+                    start_index,
+                    start_index + 1,
+                )
                 imgs.nth(0).click()
                 time.sleep(2)
                 detail = self.page.locator(SELECTORS["detail_view"]).first
@@ -737,20 +828,30 @@ class MidjourneyWebController:
                     self.page.keyboard.press("ArrowRight")
                     time.sleep(self._w("after_arrow_right_sec", 1))
 
-            prev_url: str | None = None
-            for i in range(count):
-                if stop_check and stop_check():
-                    logger.info("Stopped by user at image %d/%d", i + 1, count)
-                    break
-                for button_key in keys:
-                    if stop_check and stop_check():
-                        break
-                    coords = self.button_coordinates.get(button_key)
-                    if not coords or len(coords) < 2:
-                        continue
-                    x, y = self._scale_coord(coords[0], coords[1])
+            page_url = self.page.url if self.page else ""
+            img_url = self._get_image_url_from_detail_view(0)
+            job_id = self._extract_job_id_from_url(page_url or img_url or "")
+            logger.info(
+                "[Upscale TRACE] Before loop: page_url=%s, image_job_id=%s, processing images %d-%d",
+                (page_url[:80] + "..." if page_url and len(page_url) > 80 else page_url) or "None",
+                job_id[:8] if job_id else "?",
+                start_index + 1,
+                start_index + count,
+            )
 
-                    if button_key == "download":
+            prev_url: str | None = None
+            if "download" in keys:
+                for i in range(count):
+                    if stop_check and stop_check():
+                        logger.info("Stopped by user at image %d/%d", i + 1, count)
+                        break
+                    for button_key in keys:
+                        if stop_check and stop_check():
+                            break
+                        coords = self.button_coordinates.get(button_key)
+                        if not coords or len(coords) < 2:
+                            continue
+                        x, y = self._scale_coord(coords[0], coords[1])
                         dest = build_image_path(out_folder, stem, 1, start_index + i + 1)
                         if i > 0 and prev_url:
                             for _ in range(8):
@@ -768,42 +869,94 @@ class MidjourneyWebController:
                             logger.warning("Download failed for image %d", i + 1)
                         if progress_callback:
                             progress_callback(i + 1, count)
-                    else:
-                        for click_attempt in range(3):
-                            try:
-                                self._show_click_overlay(x, y, button_key)
-                                self.page.mouse.click(x, y)
-                                logger.info("%s image %d/%d%s", button_key, i + 1, count, f" (retry {click_attempt})" if click_attempt > 0 else "")
-                                break
-                            except Exception as e:
-                                logger.warning("%s click failed for image %d%s: %s", button_key, i + 1, f" (attempt {click_attempt + 1}/3)" if click_attempt < 2 else "", e)
-                                if click_attempt < 2:
-                                    time.sleep(2)
-                                else:
-                                    raise
-
-                    time.sleep(self._w("after_upscale_click_sec", 1))
-
-                if i < count - 1:
-                    try:
-                        detail.focus()
-                    except Exception:
-                        pass
-                    self.page.keyboard.press("ArrowRight")
-                    time.sleep(self._w("after_arrow_right_sec", 1))
-                    if "download" in keys:
+                        time.sleep(self._w("after_upscale_click_sec", 1))
+                    if i < count - 1:
+                        try:
+                            detail.focus()
+                        except Exception:
+                            pass
+                        self.page.keyboard.press("ArrowRight")
+                        time.sleep(self._w("after_arrow_right_sec", 1))
                         time.sleep(1.5)
                         try:
                             img = detail.locator('img[src*="cdn.midjourney.com"]').first
                             img.wait_for(state="visible", timeout=5000)
                         except Exception:
                             pass
+            else:
+                # Upscale/vary: simple loop, no deduplication (resume URL points to first image of batch)
+                for i in range(count):
+                    if stop_check and stop_check():
+                        logger.info("Stopped by user at image %d/%d", i + 1, count)
+                        break
+                    for button_key in keys:
+                        if stop_check and stop_check():
+                            break
+                        coords = self.button_coordinates.get(button_key)
+                        if not coords or len(coords) < 2:
+                            continue
+                        x, y = self._scale_coord(coords[0], coords[1])
+                        for click_attempt in range(3):
+                            try:
+                                self._show_click_overlay(x, y, button_key)
+                                self.page.mouse.click(x, y)
+                                logger.info(
+                                    "%s image %d/%d%s",
+                                    button_key,
+                                    i + 1,
+                                    count,
+                                    f" (retry {click_attempt})" if click_attempt > 0 else "",
+                                )
+                                break
+                            except Exception as e:
+                                logger.warning(
+                                    "%s click failed for image %d%s: %s",
+                                    button_key,
+                                    i + 1,
+                                    f" (attempt {click_attempt + 1}/3)" if click_attempt < 2 else "",
+                                    e,
+                                )
+                                if click_attempt < 2:
+                                    time.sleep(2)
+                                else:
+                                    raise
+                        time.sleep(self._w("after_upscale_click_sec", 1))
+
+                    if i < count - 1:
+                        try:
+                            detail.focus()
+                        except Exception:
+                            pass
+                        self.page.keyboard.press("ArrowRight")
+                        time.sleep(self._w("after_arrow_right_sec", 1))
+
+                # If more batches remain: ArrowRight once to land on first image of next batch
+                has_more_batches = (
+                    total_count is not None and start_index + count < total_count
+                )
+                if has_more_batches and not (stop_check and stop_check()):
+                    try:
+                        detail.focus()
+                    except Exception:
+                        pass
+                    prev_img_url = self._get_image_url_from_detail_view(0)
+                    self.page.keyboard.press("ArrowRight")
+                    time.sleep(self._w("resume_arrow_right_wait_sec", 2.5))
+                    self._wait_for_carousel_advance(prev_img_url or "", max_wait_sec=8)
+                    logger.info(
+                        "[Upscale TRACE] Advanced to first image of next batch for resume URL",
+                    )
 
             page_url = self.page.url if self.page else ""
             last_url = (
                 page_url
                 if self._is_jobs_url(page_url)
                 else self._get_image_url_from_detail_view(0)
+            )
+            logger.info(
+                "[Upscale TRACE] Batch complete: last_url=%s (jobs_url=%s)",
+                (last_url[:80] + "..." if last_url and len(last_url) > 80 else last_url) or "None",
+                self._is_jobs_url(last_url or ""),
             )
             if not keep_detail_view_open:
                 self.page.keyboard.press("Escape")
