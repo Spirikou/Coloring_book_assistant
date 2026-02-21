@@ -922,6 +922,11 @@ class MidjourneyWebController:
                                     raise
                         time.sleep(self._w("after_upscale_click_sec", 1))
 
+                    if progress_callback:
+                        current = start_index + i + 1
+                        total = total_count if total_count is not None else count
+                        progress_callback(current, total)
+
                     if i < count - 1:
                         try:
                             detail.focus()

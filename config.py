@@ -43,7 +43,7 @@ MIDJOURNEY_CONFIG: dict[str, Any] = {
         "scroll_before_batch_sec": 1,
         "navigate_retry_delay_sec": 2,
         "finalization_poll_sec": 1,
-        "ui_refresh_sec": 1,
+        "ui_refresh_sec": 5,
         "wait_for_images_timeout_sec": 120,
         "wait_for_upscale_timeout_sec": 60,
         "wait_before_upscale_sec": 90,

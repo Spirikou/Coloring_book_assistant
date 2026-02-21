@@ -674,11 +674,51 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
                 st.session_state.mj_publish_stop_flag["stop"] = True
             st.rerun()
 
+    # Inline progress display (unified overview, publish, uxd/download)
+    if automated_running:
+        pub_prog = st.session_state.mj_publish_progress
+        uxd_prog = st.session_state.mj_uxd_progress
+        dl_prog = st.session_state.mj_download_progress
+        pub_s = mj_status.get("publish_status", "idle")
+        uxd_s = mj_status.get("uxd_action_status", "idle")
+        dl_s = mj_status.get("download_status", "idle")
+        parts = []
+        if pub_s == "running":
+            phase = pub_prog.get("phase", "submit")
+            if phase == "submit":
+                sc, stotal = pub_prog.get("submit_current", 0), pub_prog.get("submit_total", 1)
+                parts.append(f"Publish: {sc}/{stotal} prompts")
+            elif phase in ("wait", "wait_queue"):
+                qc = pub_prog.get("queue_count")
+                parts.append(f"Publish: Queue {qc} jobs" if qc is not None else "Publish: Checking...")
+            else:
+                parts.append("Publish: Finalizing...")
+        elif pub_s in ("completed", "stopped"):
+            parts.append("Publish: done")
+        if uxd_s == "running":
+            cur = uxd_prog.get("uxd_current_image")
+            tot = uxd_prog.get("uxd_total_images")
+            if cur is not None and tot:
+                parts.append(f"Upscale: {cur}/{tot}")
+            else:
+                bc, bt = uxd_prog.get("uxd_batch_current", 1), uxd_prog.get("uxd_total_batches", 1)
+                parts.append(f"Upscale: Batch {bc}/{bt}")
+        elif uxd_s in ("completed", "stopped"):
+            parts.append("Upscale: done")
+        if dl_s == "running":
+            c, t = dl_prog.get("current", 0), dl_prog.get("total", 1)
+            parts.append(f"Download: {c}/{t}")
+        elif dl_s in ("completed", "stopped"):
+            parts.append("Download: done")
+        if parts:
+            st.caption(" | ".join(parts))
     # Publish progress
     pub_status = mj_status.get("publish_status", "idle")
     batch_total = mj_status.get("batch_total", 0)
     batch_cur = mj_status.get("batch_current_index", 0)
     batch_title = mj_status.get("batch_current_design_title", "")
+    if automated_running and pub_status == "running":
+        st.caption("**Phase 1: Publish**")
     if pub_status == "running" and batch_total > 1 and batch_title:
         st.info(f"Design {batch_cur}/{batch_total}: **{batch_title}**")
     if pub_status == "running":
@@ -733,12 +773,12 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
         st.warning("Stopped by user.")
     elif pub_status == "error":
         st.error(mj_status.get("publish_error", "Unknown error"))
-
-    # --- Unified progress for automated mode (upscale + download phases) ---
+    # Unified progress for automated mode (upscale + download phases)
     if automated_running:
         uxd_status = mj_status.get("uxd_action_status", "idle")
         dl_status = mj_status.get("download_status", "idle")
         if uxd_status == "running":
+            st.caption("**Phase 2: Upscale/Vary**")
             prog = st.session_state.mj_uxd_progress
             phase = prog.get("phase", "click")
             if phase == "wait":
@@ -749,10 +789,24 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
                 est_text = f" · ~{estimated_min:.1f} min" if estimated_min and estimated_min > 0 else ""
                 st.info(f"**Upscale/Vary:** {queue_text}{est_text}{batch_info}")
             else:
-                st.info("**Upscale/Vary:** Running upscale actions...")
+                cur_img = prog.get("uxd_current_image")
+                tot_img = prog.get("uxd_total_images")
+                if cur_img is not None and tot_img and tot_img > 0:
+                    pct = cur_img / tot_img
+                    st.progress(min(1.0, pct), text=f"**Upscale/Vary:** Upscaling image {cur_img}/{tot_img}...")
+                else:
+                    batch_cur = prog.get("uxd_batch_current", 1)
+                    batch_tot = prog.get("uxd_total_batches", 1)
+                    images_est = prog.get("images_estimated", 0)
+                    batch_info = f"Batch {batch_cur}/{batch_tot}" if batch_tot > 1 else ""
+                    img_info = f"{images_est} images" if images_est else ""
+                    label = " · ".join(filter(None, [batch_info, img_info])) or "Running upscale actions..."
+                    pct = batch_cur / batch_tot if batch_tot > 0 else 0
+                    st.progress(min(1.0, pct), text=f"**Upscale/Vary:** {label}")
         elif uxd_status == "completed" and dl_status != "running" and dl_status != "completed":
             st.success("Upscale done. Allow ~20s per image before download.")
         elif dl_status == "running":
+            st.caption("**Phase 3: Download**")
             prog = st.session_state.mj_download_progress
             cur = prog.get("current", 0)
             tot = prog.get("total", 1)
@@ -878,7 +932,20 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
                 est_text = f" · ~{estimated_min:.1f} min" if estimated_min and estimated_min > 0 else ""
                 st.info(f"{queue_text}{est_text}{batch_info}")
             else:
-                st.info("Running upscale/vary actions...")
+                cur_img = prog.get("uxd_current_image")
+                tot_img = prog.get("uxd_total_images")
+                if cur_img is not None and tot_img and tot_img > 0:
+                    pct = cur_img / tot_img
+                    st.progress(min(1.0, pct), text=f"Upscaling image {cur_img}/{tot_img}...")
+                else:
+                    batch_cur = prog.get("uxd_batch_current", 1)
+                    batch_tot = prog.get("uxd_total_batches", 1)
+                    images_est = prog.get("images_estimated", 0)
+                    batch_info = f"Batch {batch_cur}/{batch_tot}" if batch_tot > 1 else ""
+                    img_info = f"{images_est} images" if images_est else ""
+                    label = " · ".join(filter(None, [batch_info, img_info])) or "Running upscale/vary actions..."
+                    pct = batch_cur / batch_tot if batch_tot > 0 else 0
+                    st.progress(min(1.0, pct), text=label)
         elif uxd_status == "completed":
             st.success("Done. Allow ~20s per new image before downloading.")
         elif uxd_status == "stopped":
@@ -1080,13 +1147,13 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
         process_just_finished = True
     if process_just_finished:
         st.rerun()
-
     # Auto-refresh while any MJ process is running
-    if (
-        (auto_proc and auto_proc.is_alive())
+    process_running = (
+        (mj_automated_process and mj_automated_process.is_alive())
         or (mj_status.get("publish_status") == "running" and pub_proc and pub_proc.is_alive())
         or (mj_status.get("uxd_action_status") == "running" and uxd_proc and uxd_proc.is_alive())
         or (mj_status.get("download_status") == "running" and dl_proc and dl_proc.is_alive())
-    ):
-        time.sleep(cfg.get("waits", {}).get("ui_refresh_sec", 1))
+    )
+    if process_running:
+        time.sleep(cfg.get("waits", {}).get("ui_refresh_sec", 5))
         st.rerun()

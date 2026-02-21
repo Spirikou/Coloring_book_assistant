@@ -305,6 +305,12 @@ def run_uxd_action_thread(
                 batch_num = batch_start // 10 + 1
                 progress_store["uxd_batch_current"] = batch_num
                 progress_store["phase"] = "click"
+                progress_store["uxd_total_images"] = count
+
+                def uxd_progress_cb(current: int, total: int) -> None:
+                    progress_store["uxd_current_image"] = current
+                    progress_store["uxd_total_images"] = total
+
                 logger.info(
                     "[Upscale TRACE] Batch %d/%d: start_index=%d, batch_size=%d, resuming=%s, last_url=%s",
                     batch_num,
@@ -320,6 +326,7 @@ def run_uxd_action_thread(
                     start_index=batch_start,
                     last_processed_url=last_processed_url,
                     total_count=count,
+                    progress_callback=uxd_progress_cb,
                 )
                 if last_processed_url:
                     logger.info(
