@@ -193,6 +193,7 @@ Create a unique creative concept by pairing the theme with the ideal artistic st
 2. **Find Signature Artist**: Who is the most famous artist in this style for coloring books?
 3. **Create Unique Angle**: How can we make this stand out from existing books?
 4. **Define Visual Language**: What specific visual elements define this style?
+5. **No Color Terms**: visual_elements and style_keywords must describe form, line, pattern, and composition only. NEVER include color words (red, blue, vibrant, pastel, etc.) - these are black and white coloring pages.
 
 ## RESPONSE FORMAT (JSON only):
 {{
@@ -508,6 +509,7 @@ Create EXACTLY 50 prompts. Each prompt MUST follow this EXACT format:
 6. MUST include "black and white" in every prompt
 7. MUST end with "--no color --ar 1:1"
 8. EVERY prompt must include the ARTISTIC STYLE specified above in the keywords
+9. NEVER include color-related keywords - these are black and white line art pages. Banned: red, blue, green, yellow, orange, purple, pink, vibrant, colorful, colourful, pastel, hue, multicolored, rainbow, golden, silver, crimson, azure, etc.
 
 ## STYLE-SPECIFIC EXAMPLES:
 - Mandala style: "owl, mandala pattern, zentangle, intricate circles, coloring book page, clean and simple line art, black and white --no color --ar 1:1"
@@ -516,6 +518,7 @@ Create EXACTLY 50 prompts. Each prompt MUST follow this EXACT format:
 
 ## BAD PROMPTS (DO NOT DO THIS):
 "A beautiful owl sitting majestically in an enchanted forest" - TOO WORDY, uses banned words, no style keywords
+"owl, vibrant feathers, red flowers, blue sky, coloring book page..." - CONTAINS COLOR WORDS (vibrant, red, blue) - forbidden for black and white line art
 
 Return a JSON array with exactly 50 prompts. No markdown, just the array.""")
 

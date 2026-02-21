@@ -33,6 +33,14 @@ BANNED_AI_WORDS = [
     "it goes without saying", "needless to say", "rest assured",
 ]
 
+# Color-related words banned from MidJourney prompts (black and white line art only)
+BANNED_COLOR_WORDS = [
+    "red", "blue", "green", "yellow", "orange", "purple", "pink", "brown", "gold", "golden",
+    "silver", "vibrant", "colorful", "colourful", "pastel", "multicolored", "multicoloured",
+    "rainbow", "crimson", "azure", "emerald", "amber", "hue", "hues", "colored", "coloured",
+    "color", "colour", "chromatic", "vivid colors", "bold colors", "soft colors",
+]
+
 # Marketing clichés to avoid (separate from AI words)
 MARKETING_CLICHES = [
     # Generic coloring book phrases
@@ -326,33 +334,38 @@ PROMPTS_EVALUATOR_PROMPT = """You are a strict quality evaluator for MidJourney 
    - Must contain "black and white"
    - Must end with "--no color --ar 1:1"
 
+4. **NO COLOR KEYWORDS** (CRITICAL - deduct heavily if found):
+   - These are black and white line art pages. NEVER use color-related keywords.
+   - Banned: red, blue, green, yellow, vibrant, colorful, pastel, hue, multicolored, rainbow, golden, etc.
+   - Any prompt containing color words FAILS this criterion.
+
 ### Creative Variety (40 points)
-4. **Subject Diversity** (10 points):
+5. **Subject Diversity** (10 points):
    - Are there varied subjects? (animals, plants, patterns, objects, scenes)
    - Does each prompt feel unique, not repetitive?
 
-5. **Style Diversity** (10 points):
+6. **Style Diversity** (10 points):
    - Mix of styles: mandala, geometric, realistic, abstract, floral, zentangle
    - Not all prompts use the same style approach
 
-6. **Creative Combinations** (10 points):
+7. **Creative Combinations** (10 points):
    - Are keywords combined in interesting ways?
    - Unexpected pairings that would create visually striking pages
    - Example: "steampunk owl, clockwork feathers, Victorian frame" vs boring "owl, tree, leaves"
 
-7. **Artistic Coherence** (10 points):
+8. **Artistic Coherence** (10 points):
    - Do prompts work well together as a collection?
    - Is there a unifying theme while maintaining variety?
    - Would a colorist enjoy the journey through these pages?
 
 ### MidJourney Effectiveness (30 points)
-8. **Keyword Quality**:
+9. **Keyword Quality**:
    - Specific, visual keywords that MidJourney will interpret well
    - No vague terms like "beautiful", "nice", "good"
-   - No color-related keywords (it's black and white)
+   - NO color-related keywords (see criterion 4 - critical for black and white)
    - Keywords that produce clean line art
 
-9. **Coloring Appropriateness**:
+10. **Coloring Appropriateness**:
    - Will the resulting images work as coloring pages?
    - Not too simple (boring) or too complex (frustrating)
    - Good balance of detail and white space
@@ -409,6 +422,12 @@ def evaluate_prompts(prompts: list) -> dict:
             format_issues.append(f"Prompt {i+1} missing 'clean and simple line art'")
         if "black and white" not in p.lower():
             format_issues.append(f"Prompt {i+1} missing 'black and white'")
+        # Check for banned color words (black and white line art only)
+        p_lower = p.lower()
+        for color_word in BANNED_COLOR_WORDS:
+            if re.search(r'\b' + re.escape(color_word) + r'\b', p_lower):
+                format_issues.append(f"Prompt {i+1} contains color word: '{color_word}' (forbidden for B&W)")
+                break
     
     # Prepare sample (show 10 prompts for evaluation)
     if len(prompts) > 10:
@@ -427,9 +446,21 @@ def evaluate_prompts(prompts: list) -> dict:
         })
         
         evaluation = parse_json_response(result)
+        # Inject color-word issues from pre-check so they trigger refinement
+        color_issues = [f for f in format_issues if "color word" in f]
+        if color_issues:
+            existing_issues = evaluation.get("issues", [])
+            sample = ", ".join(color_issues[:5])
+            if len(color_issues) > 5:
+                sample += f" (+{len(color_issues)-5} more)"
+            evaluation["issues"] = existing_issues + [
+                {"issue": f"{len(color_issues)} prompt(s) contain color keywords. Examples: {sample}", "severity": "critical", "suggestion": "Remove ALL color-related words from prompts - use only black and white line art descriptors"}
+            ]
+            evaluation["passed"] = False
+            evaluation["score"] = min(evaluation.get("score", 100), 70)  # Cap score when color words found
         evaluation["metrics"] = {
             "prompt_count": prompt_count,
-            "pre_check_issues": format_issues[:5]  # Limit to first 5
+            "pre_check_issues": format_issues[:10]  # Include more for color issues
         }
         
         return evaluation
