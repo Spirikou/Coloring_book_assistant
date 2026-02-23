@@ -14,7 +14,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from config import GENERATED_IMAGES_DIR, get_midjourney_config
+from config import GENERATED_IMAGES_DIR, IMAGE_MIN_SCORE_THRESHOLD, get_midjourney_config
 from features.image_generation.midjourney_runner import (
     run_automated_process,
     run_batch_automated_process,
@@ -291,20 +291,35 @@ def _open_folder_in_explorer(folder: Path) -> bool:
         return False
 
 
-def _do_delete_all(paths: list[Path], mj_status: dict) -> None:
+def _prune_evaluations_for_deleted(folder: Path, deleted_names: set[str]) -> None:
+    """Remove evaluation entries for deleted images from image_evaluations.json."""
+    if not folder or not deleted_names:
+        return
+    evals = load_image_evaluations(folder)
+    updated = {k: v for k, v in evals.items() if k not in deleted_names}
+    if len(updated) != len(evals):
+        save_image_evaluations(folder, updated)
+
+
+def _do_delete_all(paths: list[Path], folder: Path | None, mj_status: dict) -> None:
     """Delete all files and clear session state."""
+    deleted_names = {Path(p).name for p in paths}
     for p in paths:
         try:
             Path(p).unlink(missing_ok=True)
         except Exception:
             pass
     mj_status["downloaded_paths"] = []
+    if folder:
+        _prune_evaluations_for_deleted(folder, deleted_names)
 
 
 def _do_delete_one(p: Path, folder: Path | None, mj_status: dict) -> None:
     """Delete single file and update session state."""
     try:
         p.unlink(missing_ok=True)
+        if folder:
+            _prune_evaluations_for_deleted(folder, {p.name})
         if folder is None and "downloaded_paths" in mj_status:
             mj_status["downloaded_paths"] = [
                 x for x in mj_status["downloaded_paths"]
@@ -312,6 +327,56 @@ def _do_delete_one(p: Path, folder: Path | None, mj_status: dict) -> None:
             ]
     except Exception:
         pass
+
+
+@st.dialog("Image Detail", width="large")
+def _image_detail_dialog(folder: Path, paths: list[Path], initial_index: int) -> None:
+    """Full-screen image view with Prev/Next navigation and Delete."""
+    folder = Path(folder)
+    paths = [Path(p) if not isinstance(p, Path) else p for p in paths]
+    paths = [p for p in paths if p.exists()]
+    if not paths:
+        st.warning("No images to display.")
+        if st.button("Close"):
+            st.rerun()
+        return
+
+    # Persist current index in session state for Prev/Next navigation
+    key_idx = "mj_detail_view_index"
+    key_folder = "mj_detail_view_folder"
+    if st.session_state.get(key_folder) != str(folder):
+        st.session_state[key_folder] = str(folder)
+        st.session_state[key_idx] = initial_index
+    idx = st.session_state.get(key_idx, initial_index)
+    idx = max(0, min(idx, len(paths) - 1))
+    st.session_state[key_idx] = idx
+
+    p = paths[idx]
+    try:
+        st.image(str(p), use_container_width=True)
+    except (OSError, ValueError):
+        st.warning(f"Could not load: {p.name}")
+
+    st.caption(f"{p.name} ({idx + 1} / {len(paths)})")
+
+    col_prev, col_next, col_del, col_close, _ = st.columns([1, 1, 1, 1, 4])
+    with col_prev:
+        if st.button("← Prev", disabled=(idx <= 0), key="mj_detail_prev"):
+            st.session_state[key_idx] = idx - 1
+            st.rerun()
+    with col_next:
+        if st.button("Next →", disabled=(idx >= len(paths) - 1), key="mj_detail_next"):
+            st.session_state[key_idx] = idx + 1
+            st.rerun()
+    with col_del:
+        if st.button("Delete", type="secondary", key="mj_detail_del"):
+            mj_status = st.session_state.get("mj_status", {})
+            _do_delete_one(p, folder, mj_status)
+            st.session_state[key_idx] = min(idx, len(paths) - 2) if len(paths) > 1 else 0
+            st.rerun()
+    with col_close:
+        if st.button("Close", key="mj_detail_close"):
+            st.rerun()
 
 
 def _render_downloaded_images_gallery(
@@ -331,10 +396,32 @@ def _render_downloaded_images_gallery(
 
     evaluations = load_image_evaluations(folder)
 
-    col_title, col_open, col_save, col_analyze, col_delete_all = st.columns([2, 1, 1, 1, 1])
+    # Sync selected images from checkboxes (from previous run)
+    if "mj_selected_images" not in st.session_state:
+        st.session_state["mj_selected_images"] = {}
+    selected_set = {
+        p.name for p in paths
+        if st.session_state.get(f"mj_sel_{p.name}", False)
+    }
+    st.session_state["mj_selected_images"][str(folder)] = selected_set
+
+    col_title, col_open, col_save, col_analyze, col_delete_sel, col_delete_all = st.columns([2, 1, 1, 1, 1, 1])
     with col_title:
         st.subheader("Downloaded Images")
         st.caption("Your images appear here. Use Analyze to check quality with AI.")
+        sel_all, desel_all = st.columns(2)
+        with sel_all:
+            if st.button("Select all", key="mj_sel_all", type="secondary"):
+                for p in paths:
+                    st.session_state[f"mj_sel_{p.name}"] = True
+                st.session_state["mj_selected_images"][str(folder)] = {p.name for p in paths}
+                st.rerun()
+        with desel_all:
+            if st.button("Deselect all", key="mj_desel_all", type="secondary"):
+                for p in paths:
+                    st.session_state.pop(f"mj_sel_{p.name}", None)
+                st.session_state["mj_selected_images"][str(folder)] = set()
+                st.rerun()
     with col_open:
         if folder and st.button("Open folder", key="mj_open_folder_btn", type="secondary"):
             _open_folder_in_explorer(folder)
@@ -362,10 +449,67 @@ def _render_downloaded_images_gallery(
         if st.button("Analyze images", key="mj_analyze_btn", type="secondary", help="Run AI quality check on all images"):
             st.session_state["mj_analyze_requested"] = True
             st.rerun()
+    with col_delete_sel:
+        if selected_set and st.button(f"Delete selected ({len(selected_set)})", key="mj_del_selected", type="secondary"):
+            deleted_names = set()
+            for p in paths:
+                if p.name in selected_set:
+                    try:
+                        p.unlink(missing_ok=True)
+                        deleted_names.add(p.name)
+                    except Exception:
+                        pass
+            if deleted_names:
+                _prune_evaluations_for_deleted(folder, deleted_names)
+                mj_status["downloaded_paths"] = [
+                    x for x in mj_status.get("downloaded_paths", [])
+                    if Path(x).name not in deleted_names
+                ]
+                for name in deleted_names:
+                    st.session_state.pop(f"mj_sel_{name}", None)
+                st.session_state["mj_selected_images"][str(folder)] = set()
+            st.rerun()
     with col_delete_all:
         if st.button("Delete all", key="mj_del_all_downloaded", type="secondary"):
-            _do_delete_all(paths, mj_status)
+            _do_delete_all(paths, folder, mj_status)
             st.rerun()
+
+    # Delete below threshold (only when evaluations exist)
+    with st.expander("Image quality", expanded=False):
+        threshold = st.number_input(
+            "Min score to keep",
+            min_value=0,
+            max_value=100,
+            value=IMAGE_MIN_SCORE_THRESHOLD,
+            key="mj_score_threshold",
+            help="Images with score below this will be deleted when you click 'Delete below threshold'.",
+        )
+        if evaluations:
+            to_delete = [
+                p for p in paths
+                if p.name in evaluations
+                and evaluations[p.name].get("score") is not None
+                and evaluations[p.name]["score"] < threshold
+            ]
+            if to_delete and st.button("Delete below threshold", key="mj_del_below_threshold", type="secondary"):
+                deleted_names = set()
+                for p in to_delete:
+                    try:
+                        p.unlink(missing_ok=True)
+                        deleted_names.add(p.name)
+                    except Exception:
+                        pass
+                if deleted_names:
+                    _prune_evaluations_for_deleted(folder, deleted_names)
+                    mj_status["downloaded_paths"] = [
+                        x for x in mj_status.get("downloaded_paths", [])
+                        if Path(x).name not in deleted_names
+                    ]
+                    for name in deleted_names:
+                        st.session_state.pop(f"mj_sel_{name}", None)
+                    if str(folder) in st.session_state.get("mj_selected_images", {}):
+                        st.session_state["mj_selected_images"][str(folder)] -= deleted_names
+                st.rerun()
 
     if st.session_state.get("mj_analyze_requested"):
         st.session_state["mj_analyze_requested"] = False
@@ -417,9 +561,18 @@ def _render_downloaded_images_gallery(
                                         st.markdown(f"- [{sev}] {iss.get('issue', '')}")
                     else:
                         st.caption(p.name)
-                    if st.button("Delete", key=f"mj_del_{p.name}_{row_start}_{i}", type="secondary"):
-                        _do_delete_one(p, folder, mj_status)
-                        st.rerun()
+                    st.checkbox("Select", key=f"mj_sel_{p.name}", value=(p.name in selected_set))
+                    btn_col1, btn_col2 = st.columns(2)
+                    with btn_col1:
+                        img_index = row_start + i
+                        if st.button("View", key=f"mj_view_{p.name}_{row_start}_{i}", type="secondary"):
+                            st.session_state["mj_detail_view_index"] = img_index
+                            st.session_state["mj_detail_view_folder"] = str(folder)
+                            _image_detail_dialog(folder, paths, img_index)
+                    with btn_col2:
+                        if st.button("Delete", key=f"mj_del_{p.name}_{row_start}_{i}", type="secondary"):
+                            _do_delete_one(p, folder, mj_status)
+                            st.rerun()
                 else:
                     st.caption(f"{p.name} (deleted)")
                     if "downloaded_paths" in mj_status:

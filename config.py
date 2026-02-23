@@ -29,6 +29,7 @@ IMAGE_EVALUATOR_MODEL = os.getenv("CB_IMAGE_EVALUATOR_MODEL", "gpt-5-mini")
 
 # Image quality evaluator persistence
 IMAGE_EVALUATIONS_FILE = "image_evaluations.json"
+IMAGE_MIN_SCORE_THRESHOLD = 70
 
 # Midjourney config (integrated from midjourney_agent config.json)
 # get_midjourney_config() returns flat dict with keys expected by integrations.midjourney
