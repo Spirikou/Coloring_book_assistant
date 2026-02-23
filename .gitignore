@@ -39,4 +39,10 @@ build/
 # Generated/output
 output/
 saved_designs/
+saved_design_packages/
 pinterest_publish/
+generated_images/
+
+# Debug screenshots
+canva_after_design_creation.png
+canva_modal_debug.png
