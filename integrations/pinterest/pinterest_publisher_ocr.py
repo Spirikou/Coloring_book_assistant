@@ -574,7 +574,7 @@ class PinterestPublisher:
                 if btn.is_visible(timeout=2000):
                     btn.click()
                     logger.info(f"Clicked publish via: {selector}")
-                    self.page.wait_for_timeout(3000)
+                    self.page.wait_for_timeout(15000)
                     return
             except:
                 continue
@@ -584,7 +584,7 @@ class PinterestPublisher:
             publish_btn = self.page.get_by_role("button", name="Publish")
             publish_btn.click(timeout=2000)
             logger.info("Clicked publish via role")
-            self.page.wait_for_timeout(3000)
+            self.page.wait_for_timeout(15000)
             return
         except:
             pass

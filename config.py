@@ -14,6 +14,21 @@ OUTPUT_DIR = Path(os.getenv("CB_OUTPUT_DIR", str(PROJECT_ROOT)))
 SAVED_DESIGNS_DIR = OUTPUT_DIR / "saved_designs"
 PINTEREST_PUBLISH_DIR = OUTPUT_DIR / "pinterest_publish"
 GENERATED_IMAGES_DIR = OUTPUT_DIR / "generated_images"
+SAVED_DESIGN_PACKAGES_DIR = OUTPUT_DIR / "saved_design_packages"
+
+# -----------------------------------------------------------------------------
+# LLM Models (performance-optimized per task)
+# Override via env: CB_DESIGN_EVALUATOR_MODEL, CB_CONTENT_MODEL, etc.
+# -----------------------------------------------------------------------------
+DESIGN_EVALUATOR_MODEL = os.getenv("CB_DESIGN_EVALUATOR_MODEL", "gpt-4.1-mini")
+CONTENT_MODEL = os.getenv("CB_CONTENT_MODEL", "gpt-5-mini")
+EXECUTOR_MODEL = os.getenv("CB_EXECUTOR_MODEL", "gpt-5-mini")
+PINTEREST_MODEL = os.getenv("CB_PINTEREST_MODEL", "gpt-4.1-mini")
+GUIDE_CHAT_MODEL = os.getenv("CB_GUIDE_CHAT_MODEL", "gpt-4.1-mini")
+IMAGE_EVALUATOR_MODEL = os.getenv("CB_IMAGE_EVALUATOR_MODEL", "gpt-5-mini")
+
+# Image quality evaluator persistence
+IMAGE_EVALUATIONS_FILE = "image_evaluations.json"
 
 # Midjourney config (integrated from midjourney_agent config.json)
 # get_midjourney_config() returns flat dict with keys expected by integrations.midjourney

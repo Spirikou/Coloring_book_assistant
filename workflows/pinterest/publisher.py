@@ -49,7 +49,8 @@ class PinterestPublishingWorkflow:
         design_state: Dict,
         images_folder: str,
         output_folder: Optional[str] = None,
-        selected_images: Optional[list] = None
+        selected_images: Optional[list] = None,
+        use_folder_directly: bool = False,
     ) -> str:
         """
         Prepare folder for Pinterest publishing.
@@ -60,10 +61,16 @@ class PinterestPublishingWorkflow:
             output_folder: Optional custom output folder path
             selected_images: Optional list of full paths to copy. When provided, only these
                 images are copied. When None/empty, all images from folder are copied.
+            use_folder_directly: If True and folder has book_config.json, return folder
+                without copying (fast path for design packages).
 
         Returns:
             Path to prepared folder
         """
+        images_path = Path(images_folder)
+        book_config = images_path / "book_config.json"
+        if use_folder_directly and book_config.exists() and images_path.is_dir():
+            return str(images_path.resolve())
         if output_folder is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_folder = str(self.output_base / f"publish_{timestamp}")

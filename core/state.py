@@ -49,6 +49,7 @@ class ColoringBookState(TypedDict, total=False):
     
     # Image generation state
     images_folder_path: str  # Path to folder containing generated images
+    design_package_path: str  # Path to design package folder (design.json + images)
     uploaded_images: list  # List of image file paths
     images_ready: bool  # Flag indicating images are ready for next step
     

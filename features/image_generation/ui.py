@@ -22,6 +22,11 @@ from features.image_generation.midjourney_runner import (
     run_publish_process,
     run_uxd_action_process,
 )
+from features.image_generation.agents.evaluator import (
+    evaluate_images_in_folder,
+    load_image_evaluations,
+    save_image_evaluations,
+)
 from features.image_generation.monitor import list_images_in_folder
 from integrations.midjourney.automation.browser_utils import check_browser_connection
 from integrations.midjourney.automation.health_check import run_health_checks
@@ -312,8 +317,9 @@ def _do_delete_one(p: Path, folder: Path | None, mj_status: dict) -> None:
 def _render_downloaded_images_gallery(
     folder: Path,
     mj_status: dict,
+    state: dict | None = None,
 ) -> None:
-    """Render a grid of downloaded images with Delete button per image."""
+    """Render a grid of downloaded images with Delete button and quality badges per image."""
     paths = list_images_in_folder(str(folder))
     if not paths:
         st.subheader("Downloaded Images")
@@ -323,17 +329,60 @@ def _render_downloaded_images_gallery(
         return
     paths = [Path(p) if not isinstance(p, Path) else p for p in paths]
 
-    col_title, col_open, col_delete_all = st.columns([3, 1, 1])
+    evaluations = load_image_evaluations(folder)
+
+    col_title, col_open, col_save, col_analyze, col_delete_all = st.columns([2, 1, 1, 1, 1])
     with col_title:
         st.subheader("Downloaded Images")
-        st.caption("Your images appear here. You can delete individual files or start a new batch.")
+        st.caption("Your images appear here. Use Analyze to check quality with AI.")
     with col_open:
         if folder and st.button("Open folder", key="mj_open_folder_btn", type="secondary"):
             _open_folder_in_explorer(folder)
+    with col_save:
+        from core.persistence import save_design_package
+        has_images = len(paths) > 0
+        if state and has_images:
+            if st.button("Save design", key="mj_save_design_btn", type="secondary"):
+                try:
+                    pkg_path = state.get("design_package_path")
+                    if pkg_path and Path(pkg_path).exists():
+                        save_design_package(state, str(folder), package_path=pkg_path)
+                    else:
+                        pkg_path = save_design_package(state, str(folder))
+                        state["design_package_path"] = pkg_path
+                        state["images_folder_path"] = pkg_path
+                        st.session_state.workflow_state = state
+                    st.success("Design saved to package!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error: {e}")
+        else:
+            st.button("Save design", key="mj_save_design_btn", disabled=True, help="No images or no design metadata")
+    with col_analyze:
+        if st.button("Analyze images", key="mj_analyze_btn", type="secondary", help="Run AI quality check on all images"):
+            st.session_state["mj_analyze_requested"] = True
+            st.rerun()
     with col_delete_all:
         if st.button("Delete all", key="mj_del_all_downloaded", type="secondary"):
             _do_delete_all(paths, mj_status)
             st.rerun()
+
+    if st.session_state.get("mj_analyze_requested"):
+        st.session_state["mj_analyze_requested"] = False
+        with st.spinner("Analyzing images with AI..."):
+            progress_placeholder = st.empty()
+            def on_progress(current: int, total: int, filename: str) -> None:
+                progress_placeholder.caption(f"Analyzing {current}/{total}: {filename}")
+
+            results = evaluate_images_in_folder(
+                folder,
+                on_progress=on_progress,
+            )
+            save_image_evaluations(folder, results)
+            progress_placeholder.empty()
+        st.success("Analysis complete!")
+        st.rerun()
+
     for row_start in range(0, len(paths), 4):
         row_paths = paths[row_start : row_start + 4]
         cols = st.columns(4)
@@ -344,7 +393,30 @@ def _render_downloaded_images_gallery(
                         st.image(str(p), width="stretch")
                     except (OSError, ValueError):
                         st.warning(f"Corrupted: {p.name}")
-                    st.caption(p.name)
+                    eval_result = evaluations.get(p.name, {})
+                    passed = eval_result.get("passed", None)
+                    score = eval_result.get("score")
+                    summary = eval_result.get("summary", "")
+                    issues = eval_result.get("issues", [])
+                    if passed is True:
+                        badge = "✓ Looks good"
+                    elif passed is False:
+                        badge = "⚠ Issues found"
+                    else:
+                        badge = None
+                    if badge:
+                        st.caption(f"**{badge}** (Score: {score}/100)")
+                        if summary or issues:
+                            with st.expander("Details", expanded=False):
+                                if summary:
+                                    st.write(summary)
+                                if issues:
+                                    st.markdown("**Issues:**")
+                                    for iss in issues[:5]:
+                                        sev = iss.get("severity", "minor").upper()
+                                        st.markdown(f"- [{sev}] {iss.get('issue', '')}")
+                    else:
+                        st.caption(p.name)
                     if st.button("Delete", key=f"mj_del_{p.name}_{row_start}_{i}", type="secondary"):
                         _do_delete_one(p, folder, mj_status)
                         st.rerun()
@@ -416,8 +488,12 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
         "debug_show_clicks": cfg.get("debug_show_clicks", False),
     }
 
-    # Output folder: default from state or GENERATED_IMAGES_DIR
-    default_folder = state.get("images_folder_path") or str(GENERATED_IMAGES_DIR)
+    # Output folder: default from design_package_path, images_folder_path, or GENERATED_IMAGES_DIR
+    default_folder = (
+        state.get("design_package_path")
+        or state.get("images_folder_path")
+        or str(GENERATED_IMAGES_DIR)
+    )
     output_folder = st.text_input(
         "Output folder",
         value=default_folder,
@@ -1062,7 +1138,7 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
                 key=sel_key,
             )
             gallery_folder = Path(paths_list[selected])
-    _render_downloaded_images_gallery(gallery_folder, mj_status)
+    _render_downloaded_images_gallery(gallery_folder, mj_status, state)
 
     st.session_state.workflow_state = state
 

@@ -94,6 +94,12 @@ def run_designer_in_process(
             "message": "Creating Canva design..."
         })
 
+        def _progress_callback(update: dict) -> None:
+            try:
+                progress_queue.put(update)
+            except Exception:
+                pass
+
         result = create_canva_design_core(
             folder_path=folder_path,
             page_size=page_size,
@@ -102,6 +108,7 @@ def run_designer_in_process(
             outline_height_percent=outline_height_percent,
             blank_between=blank_between,
             dry_run=dry_run,
+            progress_callback=_progress_callback,
         )
 
         result_dict = result.model_dump() if hasattr(result, "model_dump") else dict(result)

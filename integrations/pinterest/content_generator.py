@@ -13,8 +13,12 @@ except ImportError:
     try:
         from integrations.pinterest.config import OPENAI_MODEL
     except ImportError:
-        # Last resort: use default
-        OPENAI_MODEL = "gpt-4o-mini"
+        # Last resort: try main config or use default
+        try:
+            from config import PINTEREST_MODEL
+            OPENAI_MODEL = PINTEREST_MODEL
+        except ImportError:
+            OPENAI_MODEL = "gpt-4.1-mini"
 
 from .models import BookConfig, PinContent
 

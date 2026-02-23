@@ -79,7 +79,9 @@ MAX_DESCRIPTION_LENGTH = 600
 # ============================================================================
 # OPENAI CONFIGURATION
 # ============================================================================
-OPENAI_MODEL = "gpt-4o-mini"
+# Uses PINTEREST_MODEL from main config (gpt-4.1-mini for performance)
+from config import PINTEREST_MODEL
+OPENAI_MODEL = PINTEREST_MODEL
 
 # ============================================================================
 # PINTEREST SELECTORS

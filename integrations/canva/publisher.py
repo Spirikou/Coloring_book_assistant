@@ -6,7 +6,7 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Tuple, Any
+from typing import Callable, Dict, List, Optional, Tuple, Any
 
 from playwright.sync_api import sync_playwright
 
@@ -227,7 +227,7 @@ class CanvaPublisher:
         
         logger.info("Browser closed")
     
-    def run(self, folder: Path) -> Dict[str, int]:
+    def run(self, folder: Path, progress_callback: Optional[Callable[[dict], None]] = None) -> Dict[str, int]:
         # Initialize output tracking
         start_time = datetime.now(timezone.utc)
         output_data: Dict[str, Any] = {
@@ -507,7 +507,21 @@ class CanvaPublisher:
                 })
                 image_data["status"] = "success"
                 success += 1
-                
+
+                # Report per-image progress (allows parent to extend timeout)
+                if progress_callback:
+                    try:
+                        progress_callback({
+                            "step": "uploading_image",
+                            "current": success,
+                            "total": total,
+                            "status": "in_progress",
+                            "message": f"Uploaded {success}/{total}: {img.name}",
+                            "filename": img.name,
+                        })
+                    except Exception:
+                        pass
+
                 # Add blank page after image (if not the last image and blank_between is enabled)
                 if self.blank_between and i < len(images) - 1:
                     logger.info("Adding blank page after image...")

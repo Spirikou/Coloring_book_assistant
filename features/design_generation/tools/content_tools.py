@@ -28,8 +28,9 @@ load_dotenv()
 
 def get_llm():
     """Get the language model instance."""
+    from config import CONTENT_MODEL
     return ChatOpenAI(
-        model="gpt-4.1-mini",
+        model=CONTENT_MODEL,
         temperature=0.5,
         api_key=os.getenv("OPENAI_API_KEY")
     )

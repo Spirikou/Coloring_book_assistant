@@ -104,8 +104,9 @@ PASS_THRESHOLD = 80
 
 def get_evaluator_llm():
     """Get the LLM for evaluation with lower temperature for consistency."""
+    from config import DESIGN_EVALUATOR_MODEL
     return ChatOpenAI(
-        model="gpt-4o-mini",
+        model=DESIGN_EVALUATOR_MODEL,
         temperature=0.2,
         api_key=os.getenv("OPENAI_API_KEY")
     )

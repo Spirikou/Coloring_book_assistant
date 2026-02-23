@@ -1,0 +1,1536 @@
+{
+  "evaluated_at": "2026-02-22T10:22:57.584049",
+  "model": "gpt-5-mini",
+  "images": {
+    "ui_batch_U56_attempt1_1771754844.png": {
+      "passed": true,
+      "score": 94,
+      "issues": [
+        {
+          "issue": "Fine interior hatching and very thin line clusters create a lot of tiny enclosed regions that could be difficult for young children to color.",
+          "severity": "minor",
+          "suggestion": "Reduce the density of hatching or simplify some of the cross-hatch lines to form larger, more colorable areas while preserving texture."
+        },
+        {
+          "issue": "A few narrow gaps along the cracked egg edge and small floating details (tiny fish, birds, pebbles) could allow color to leak when filled traditionally.",
+          "severity": "minor",
+          "suggestion": "Close very small gaps on the cracked edges and slightly thicken or simplify tiny background elements to ensure clean fill boundaries."
+        },
+        {
+          "issue": "Some very fine background details (small shells and tiny accents) may not reproduce well at smaller print sizes.",
+          "severity": "minor",
+          "suggestion": "Either enlarge those background elements slightly or remove some of the smallest marks to maintain clarity when printed at typical coloring-book dimensions."
+        }
+      ],
+      "strengths": [
+        "Clean, sharp black line art on a white background with no color present",
+        "Consistent line weight and clear outlines suitable for printing",
+        "Well-composed scene with balanced elements and many enclosed regions for coloring",
+        "No visible AI artifacts, deformities, or distracting noise"
+      ],
+      "summary": "High-quality black-and-white coloring page with clean lines and strong composition; only minor simplifications (reduce dense hatching, close tiny gaps, and slightly enlarge very small details) are recommended for optimal usability by children."
+    },
+    "ui_batch_U55_attempt1_1771754831.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Light, subtle gray hatch marks and background strokes present",
+          "severity": "minor",
+          "suggestion": "Convert any faint gray strokes to pure black or remove them to ensure consistent black-on-white printing."
+        },
+        {
+          "issue": "Very dense hatching and many small, closely spaced lines create tiny regions that may be hard to color",
+          "severity": "minor",
+          "suggestion": "Simplify or reduce hatching density in some areas and/or increase enclosed region sizes so they are easier to fill with color."
+        },
+        {
+          "issue": "A few small gaps in intricate areas (fine details around shells and broken edges) could let color bleed when filling digitally or by hand",
+          "severity": "minor",
+          "suggestion": "Close tiny gaps and reinforce contour lines in detailed areas to create fully enclosed regions for reliable coloring."
+        }
+      ],
+      "strengths": [
+        "Clean, sharp line art with strong black/white contrast",
+        "Well-composed scene with clear enclosed shapes (eggshell interior, shells, chair) suitable for coloring",
+        "No visible color or distracting artifacts",
+        "No anatomical or AI-generation deformities; elements are coherent and detailed"
+      ],
+      "summary": "High-quality black-and-white line art well suited for a coloring book; address minor gray strokes, dense hatching, and a few tiny gaps to maximize print/coloring usability."
+    },
+    "ui_batch_U54_attempt1_1771754814.png": {
+      "passed": true,
+      "score": 90,
+      "issues": [
+        {
+          "issue": "Background is a textured beige paper rather than pure white",
+          "severity": "minor",
+          "suggestion": "Replace or clean the background to pure white (remove paper texture) so the image prints as true black-on-white line art."
+        },
+        {
+          "issue": "Subtle gray wash/shading inside and around the egg",
+          "severity": "minor",
+          "suggestion": "Remove the tonal wash and convert any shading to hatch lines or leave white to maintain pure black/white line art suitable for coloring."
+        },
+        {
+          "issue": "Paper fiber speckles and stray marks present",
+          "severity": "minor",
+          "suggestion": "Clean up speckles and stray dots in an image editor or by rescanning/photographing on a clean white surface to eliminate visual noise."
+        },
+        {
+          "issue": "Very fine cross-hatching and densely detailed areas create many tiny regions",
+          "severity": "minor",
+          "suggestion": "Thicken key outline lines and simplify or reduce some cross-hatching so enclosed areas are easier to color, especially for younger users."
+        }
+      ],
+      "strengths": [
+        "Strong, sharp black ink lines with consistent line quality",
+        "Good composition and balanced layout inside the egg",
+        "No visible AI artifacts, deformities, or merged elements",
+        "Line art is clear and readable with well-defined shapes and characters"
+      ],
+      "summary": "Well-drawn, high-quality black line art with excellent clarity and composition; remove the beige paper texture and subtle shading and slightly simplify tiny hatch-filled regions to make it ideal for a coloring book."
+    },
+    "ui_batch_U53_attempt1_1771754798.png": {
+      "passed": true,
+      "score": 90,
+      "issues": [
+        {
+          "issue": "Dense cross-hatching and textured shading produce a light gray tint in areas.",
+          "severity": "minor",
+          "suggestion": "Reduce the density of cross-hatching or replace with clean white highlights; keep shading as sparse line-work to preserve high black/white contrast."
+        },
+        {
+          "issue": "Background paper texture and small speckles/noise are visible.",
+          "severity": "minor",
+          "suggestion": "Clean the background to pure white (remove dust/specks in an image editor) or rescan with higher contrast so the background is uniform white."
+        },
+        {
+          "issue": "Many very small enclosed regions and fine details (tiny pebbles, fine hatch strokes) may be difficult to color, especially for younger users.",
+          "severity": "major",
+          "suggestion": "Simplify or slightly enlarge tiny elements and ensure outlines are closed; thicken main boundaries so color areas are more user-friendly."
+        }
+      ],
+      "strengths": [
+        "Pure black line art with no color present",
+        "Clear, sharp lines and well-defined characters",
+        "Strong, balanced composition centered on the main subject",
+        "No obvious anatomical deformities or AI artifacts",
+        "Good variety of enclosed regions for coloring across the page"
+      ],
+      "summary": "High-quality black-and-white coloring-page line art with minor cleaning and simplification needed to optimize for printing and easy coloring."
+    },
+    "ui_batch_U52_attempt1_1771754785.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Very small enclosed regions and tightly spaced lines (tiny windows, fine hatch marks)",
+          "severity": "minor",
+          "suggestion": "Increase the size of very small regions or slightly thicken lines around tiny areas so they are easier to color and print cleanly."
+        },
+        {
+          "issue": "Small open gaps in some outlines (near stems and base edges) could allow color bleed",
+          "severity": "minor",
+          "suggestion": "Close tiny gaps in outlines and reinforce junctions between shapes to ensure areas remain enclosed during printing and coloring."
+        },
+        {
+          "issue": "Dense hatch/shading lines in some areas may read as gray when printed at smaller sizes",
+          "severity": "minor",
+          "suggestion": "Simplify or reduce the density of hatching in small-detailed areas, or convert densely hatched regions into solid black accents if grayscale effect is undesirable."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color present",
+        "Sharp, clean lines and high contrast suitable for printing",
+        "Good overall composition with balanced elements and many well-enclosed coloring regions",
+        "No obvious deformities, AI artifacts, or visual noise"
+      ],
+      "summary": "High-quality black-and-white coloring-page illustration with crisp lines and good composition; address a few tiny areas and dense hatching to improve print/coloring usability."
+    },
+    "ui_batch_U51_attempt1_1771754770.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Very dense, tiny details and very narrow enclosed areas in places (e.g., small windows, fine foliage)",
+          "severity": "minor",
+          "suggestion": "Provide an alternate simplified version with slightly larger enclosed areas or remove some micro-details for younger children and easier coloring."
+        },
+        {
+          "issue": "Some extremely thin lines and very small gaps that may not reproduce well on low-resolution printers",
+          "severity": "minor",
+          "suggestion": "Thicken key outline strokes slightly and close tiny gaps in outlines to ensure clean printing and easier flood-fill coloring."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color present",
+        "Sharp, clean lines and high contrast suitable for printing",
+        "Balanced composition with many enclosed regions appropriate for coloring",
+        "Consistent line-art style and no visible AI artifacts or deformities"
+      ],
+      "summary": "High-quality pure black line-art coloring page with excellent clarity and composition; only minor adjustments recommended for print robustness and younger-colorer usability."
+    },
+    "ui_batch_U50_attempt1_1771754757.png": {
+      "passed": true,
+      "score": 93,
+      "issues": [
+        {
+          "issue": "Extensive fine hatching and cross-hatching for shading",
+          "severity": "minor",
+          "suggestion": "Reduce or thicken hatch lines or replace with simple contour shading so areas remain solid black outlines and are easier to color when printed."
+        },
+        {
+          "issue": "Very small detailed elements (tiny leaves, intricate plant textures, thin book lines)",
+          "severity": "minor",
+          "suggestion": "Slightly simplify or thicken outlines of very small details to ensure they remain visible and colorable at typical print sizes or for younger users."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color or strong tints",
+        "Sharp, clean lines and readable details throughout",
+        "Well-composed scene with large enclosed regions suitable for coloring",
+        "No visible AI artifacts, deformities, or noise"
+      ],
+      "summary": "Excellent black-and-white line art suitable for a coloring book with only minor simplification recommended for very fine hatching and tiny details."
+    },
+    "ui_batch_U49_attempt1_1771754741.png": {
+      "passed": true,
+      "score": 90,
+      "issues": [
+        {
+          "issue": "Background contains faint gray speckling and texture noise",
+          "severity": "minor",
+          "suggestion": "Remove speckling and clean to a pure white background (use threshold/levels or selective erase) so the page prints as clean black-on-white."
+        },
+        {
+          "issue": "Very fine hatch lines and tiny decorative marks create many very small regions",
+          "severity": "minor",
+          "suggestion": "Simplify or slightly thicken extremely thin hatching and tiny dots, or increase gap sizes so small areas are easier to color and won't disappear when printed."
+        },
+        {
+          "issue": "A few very small gaps in outlines (eg. in cracked egg edge and some foliage) could let color bleed",
+          "severity": "minor",
+          "suggestion": "Close tiny gaps in main outlines or merge overlapping strokes to create fully enclosed regions for cleaner coloring."
+        }
+      ],
+      "strengths": [
+        "Pure black line art with good contrast against white",
+        "Sharp, clean lines and readable detailed drawing",
+        "Consistent line-weight and well-balanced composition",
+        "No obvious deformities, AI artifacts, or unexpected visual glitches",
+        "Enclosed shapes and many suitable regions for coloring"
+      ],
+      "summary": "High-quality black-and-white coloring page with sharp, clean line art and strong composition; remove background noise and simplify some ultra-fine details to optimize for printing and coloring."
+    },
+    "ui_batch_U48_attempt1_1771754728.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Very fine intricate details and very small enclosed regions may be difficult to color, especially for young children.",
+          "severity": "minor",
+          "suggestion": "Thicken the thinnest lines or simplify the smallest details to create larger, more colorable areas depending on target age group."
+        },
+        {
+          "issue": "A few tiny gaps between lines and dense hatching areas could allow color to bleed or appear ambiguous when printed.",
+          "severity": "minor",
+          "suggestion": "Close small gaps and slightly increase the weight of primary outlines; remove or reduce extremely dense hatching to preserve clear enclosed regions for coloring."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on a white background (ideal for printing)",
+        "Sharp, crisp lines with high clarity and clean edges",
+        "Consistent line weight and well-defined shapes",
+        "Balanced composition with many clearly enclosed regions suitable for coloring",
+        "No visible deformities, AI artifacts, or visual noise"
+      ],
+      "summary": "High-quality black-and-white coloring page ready for print with only minor line-thickness and gap fixes recommended for optimal coloring usability."
+    },
+    "ui_batch_U47_attempt1_1771754712.png": {
+      "passed": true,
+      "score": 90,
+      "issues": [
+        {
+          "issue": "Extensive hatching and cross-hatching in large areas creates a light gray tint rather than pure white background in places.",
+          "severity": "minor",
+          "suggestion": "Reduce density of hatching or convert some hatch shading to open white space; keep outlines crisp and use fewer internal hatch strokes so regions remain clearly fillable."
+        },
+        {
+          "issue": "Very fine details and tightly spaced lines create small, narrow regions that may be difficult to color cleanly.",
+          "severity": "minor",
+          "suggestion": "Simplify or slightly widen very small enclosed areas (e.g., tiny decorative textures, minute plant details) and ensure closing strokes so they become usable coloring regions."
+        }
+      ],
+      "strengths": [
+        "Clean, crisp black line art with excellent contrast",
+        "Consistent and intentional line weight that preserves form and depth",
+        "Balanced, engaging composition with many enclosed areas suitable for coloring",
+        "No visible deformities, AI artifacts, or noise"
+      ],
+      "summary": "High-quality black-and-white line art suitable for a coloring book with minor tweaks recommended to reduce hatch shading and simplify very small details for easier coloring."
+    },
+    "ui_batch_U46_attempt1_1771754696.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Very fine cross-hatching and sketchy texture lines create many tiny enclosed areas that may be difficult to color, especially for young children or with large brushes.",
+          "severity": "minor",
+          "suggestion": "Reduce or simplify some of the dense hatching, or merge very small adjacent shapes into larger regions; keep texture but increase the size of colorable areas."
+        },
+        {
+          "issue": "Some thin interior lines and overlapping strokes produce very narrow gaps that could 'leak' when using flood-fill tools or crayon coloring.",
+          "severity": "minor",
+          "suggestion": "Thicken or clean up critical contour lines and close tiny gaps around cushions, books, and window frames so regions are fully enclosed."
+        },
+        {
+          "issue": "High level of small detail (book spines, brick mortar, tiny objects) may make printing and coloring time-consuming for casual users.",
+          "severity": "minor",
+          "suggestion": "Consider offering a simplified version with fewer tiny details or bolder outlines for a child-friendly variant."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background suitable for printing",
+        "Sharp, clean lines with good contrast and readable details",
+        "Balanced, engaging composition with plenty of enclosed regions for coloring",
+        "Consistent overall line-art style and no visible AI artifacts or deformities"
+      ],
+      "summary": "High-quality black-and-white line art well suited for a coloring book with only minor simplification/cleanup recommended to enlarge some tiny regions and close narrow gaps."
+    },
+    "ui_batch_U45_attempt1_1771754679.png": {
+      "passed": true,
+      "score": 94,
+      "issues": [
+        {
+          "issue": "Extensive cross-hatching and fine shading lines create light gray areas that could be interpreted as shading rather than pure outline.",
+          "severity": "minor",
+          "suggestion": "Reduce or simplify hatching; convert shading to thinner outline details or use larger enclosed areas so the image reads as pure black line art when printed."
+        },
+        {
+          "issue": "Very small, densely detailed elements (book spines, tiny leaves, cracks, and specks) produce many tiny regions that may be difficult to color cleanly.",
+          "severity": "minor",
+          "suggestion": "Simplify or slightly enlarge small details and ensure all small areas are fully enclosed; consider thickening select lines to make tiny regions easier to see and fill."
+        },
+        {
+          "issue": "Occasional extremely thin or overlapping strokes near edges which could print faintly or create hairline gaps.",
+          "severity": "minor",
+          "suggestion": "Thicken critical outline strokes and clean overlapping/sketchy marks to ensure consistent black/white contrast at print resolution."
+        }
+      ],
+      "strengths": [
+        "Clean, sharp line work with strong black/white contrast",
+        "Well-composed, balanced scene that fits coloring-book format",
+        "Consistent line weight overall and readable details",
+        "No visible AI artifacts, deformities, or anatomical errors",
+        "Many enclosed regions suitable for coloring once very fine details are simplified"
+      ],
+      "summary": "High-quality black-and-white coloring-page illustration with crisp lines and excellent composition; only minor simplification of hatching and very small details is recommended to improve print/coloring usability."
+    },
+    "ui_batch_U44_attempt1_1771754663.png": {
+      "passed": true,
+      "score": 94,
+      "issues": [
+        {
+          "issue": "Very fine hatching and densely detailed textures create many tiny enclosed areas that will be difficult to color, especially for young children or with thicker crayons.",
+          "severity": "minor",
+          "suggestion": "Reduce the density of cross-hatching in large areas or convert some hatch regions into larger, simpler shapes; increase the size of key colorable regions so they are usable with common coloring tools."
+        },
+        {
+          "issue": "Some very thin sketch lines and delicate details may print faintly or disappear on lower-quality printers.",
+          "severity": "minor",
+          "suggestion": "Thicken main contour lines slightly (especially outer borders and major shapes) while keeping interior detail thinner to preserve depth; ensure minimum printable stroke width (e.g., 0.5–1 pt at final print size)."
+        },
+        {
+          "issue": "A few small gaps along intricate line work (e.g., at the cracked eggshell edges and dense foliage) could allow color to bleed between areas.",
+          "severity": "minor",
+          "suggestion": "Carefully inspect and close tiny breaks in outlines or merge overlapping strokes so enclosed regions are fully sealed for clean coloring."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white with no color present",
+        "Crisp, clean lines and high contrast suitable for printing",
+        "Strong, balanced composition with a clear focal point",
+        "Consistent, appealing illustrative style that fits a coloring book",
+        "No obvious deformities, AI artifacts, or visual noise"
+      ],
+      "summary": "Excellent black-and-white coloring page with crisp line art and balanced composition; recommend minor simplification/thickening of very fine hatching and closing tiny gaps for optimal printing and coloring usability."
+    },
+    "ui_batch_U43_attempt1_1771754648.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Very fine hatch lines and dense textures in some areas",
+          "severity": "minor",
+          "suggestion": "Reduce or simplify cross-hatching and very thin strokes in highly detailed zones so those areas print clearly and are easier to color, or slightly thicken those lines."
+        },
+        {
+          "issue": "A few small enclosed regions and tiny gaps",
+          "severity": "minor",
+          "suggestion": "Close any tiny gaps along tight hatchwork or barn slats and enlarge very small enclosed regions so children can color them without frustration."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color",
+        "Sharp, clean lines and high contrast suitable for printing",
+        "Well-balanced composition with clear, enclosed shapes for coloring",
+        "No visible deformities, AI artifacts, or duplicated elements"
+      ],
+      "summary": "High-quality black-and-white coloring page with sharp, clean line art and good composition; simplify a few dense hatch areas and close tiny gaps for optimal printing and coloring experience."
+    },
+    "ui_batch_U42_attempt1_1771754629.png": {
+      "passed": true,
+      "score": 90,
+      "issues": [
+        {
+          "issue": "Light gray tint and dense hatching/shading in places",
+          "severity": "minor",
+          "suggestion": "Reduce or convert hatching to pure black outlines or simplify shading so regions remain pure white for printing; if shading is desired, use stippling or clearly separated hatch lines that won't reproduce as gray fills."
+        },
+        {
+          "issue": "Very fine details and thin line clusters create tiny enclosed areas that may be hard to color",
+          "severity": "minor",
+          "suggestion": "Thicken selected lines and slightly enlarge or merge some small regions to create more comfortable coloring areas, especially inside the egg interior and around small feather details."
+        },
+        {
+          "issue": "Minor stray marks and smudges near the image edges",
+          "severity": "minor",
+          "suggestion": "Clean up border noise and remove stray ink marks to ensure a clean white background for printing."
+        }
+      ],
+      "strengths": [
+        "Strong, consistent black line work with good contrast",
+        "High clarity and sharp, readable details",
+        "Balanced composition with many clearly defined enclosed regions suitable for coloring",
+        "No obvious anatomical deformities or AI artifacting"
+      ],
+      "summary": "High-quality black-and-white line art well suited for a coloring book with only minor cleanup needed (reduce gray hatching, thicken tiny regions, and remove border noise)."
+    },
+    "ui_batch_U41_attempt1_1771754612.png": {
+      "passed": true,
+      "score": 94,
+      "issues": [
+        {
+          "issue": "Very high level of fine detail creates many very small enclosed regions that may be difficult for young children to color.",
+          "severity": "minor",
+          "suggestion": "Simplify or slightly enlarge some tiny details and increase the size of small enclosed areas, or produce a simplified version for younger audiences."
+        },
+        {
+          "issue": "Some very thin hatch lines and fine texture lines may print faintly or get lost at lower resolutions.",
+          "severity": "minor",
+          "suggestion": "Thicken or darken the finest texture lines and hatching to ensure consistent reproduction on print; keep primary outlines bold."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color tinting",
+        "Sharp, clean lines and good contrast",
+        "No visible deformities or AI artifacts",
+        "Consistent and intentional line weight for depth",
+        "Balanced, well-composed scene with many clear enclosed regions suitable for coloring"
+      ],
+      "summary": "Clean, high-quality black-and-white line art well suited for a coloring book, with only minor simplification and line-thickness adjustments recommended for optimal printing and younger colorists."
+    },
+    "ui_batch_U40_attempt1_1771754596.png": {
+      "passed": true,
+      "score": 90,
+      "issues": [
+        {
+          "issue": "Light hatching and subtle gray shading inside the bowl and on lily pads",
+          "severity": "minor",
+          "suggestion": "Convert hatching to solid black lines or remove gray fills so all marks are crisp black strokes for consistent print contrast."
+        },
+        {
+          "issue": "Small speckles and stray dots around the composition",
+          "severity": "minor",
+          "suggestion": "Remove or reduce stray marks and splatters to avoid them being mistaken for artifacts and to keep the page clean for coloring."
+        },
+        {
+          "issue": "Some very thin/sketchy lines and tiny gaps in detailed areas",
+          "severity": "minor",
+          "suggestion": "Thicken faint lines slightly and close small gaps in outlines so enclosed regions are reliable for coloring and won't leak."
+        }
+      ],
+      "strengths": [
+        "Black line art on white background with no color — appropriate for a coloring book",
+        "Sharp, well-defined lines and readable details",
+        "Good, balanced composition with clearly defined areas suitable for coloring",
+        "No obvious deformities or anatomical errors in characters",
+        "Consistent artistic line weight and appealing subject matter"
+      ],
+      "summary": "High-quality black-and-white line-art suitable for a coloring book with only minor clean-up needed (remove stray speckles, strengthen a few faint lines, and eliminate subtle gray shading) to reach perfect print-ready standard."
+    },
+    "ui_batch_U39_attempt1_1771754581.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Dense cross-hatching and tight line shading in areas (inside the cracked egg and water) may reproduce as gray rather than pure black and can reduce large colorable regions.",
+          "severity": "minor",
+          "suggestion": "Reduce or remove dense hatching, increase spacing between hatch lines, or replace hatching with simpler contour shading so areas remain pure-black line art and easier to color."
+        },
+        {
+          "issue": "Very fine line details and many small enclosed areas could be difficult for younger colorists to fill.",
+          "severity": "minor",
+          "suggestion": "Simplify or slightly enlarge some tiny details (e.g., micro-plants, thin grasses, very small lily pads) to create larger, more colorable regions."
+        },
+        {
+          "issue": "A few very small gaps in outlines may allow color to leak outside regions when printed.",
+          "severity": "minor",
+          "suggestion": "Close tiny gaps and reinforce exterior contour lines so enclosed regions are fully sealed for coloring."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on a white background with no color present",
+        "Crisp, sharp lines and clean edges throughout",
+        "Well-composed, balanced scene with clear focal point",
+        "No visible deformities, AI artifacts, or duplicated elements",
+        "Consistent line quality and excellent overall contrast"
+      ],
+      "summary": "High-quality black-and-white coloring page with crisp lines and great composition; minor adjustments (reduce dense hatching, enlarge/simplify tiny details, close small gaps) will improve print/coloring usability."
+    },
+    "ui_batch_U38_attempt1_1771754567.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Extensive hatching/shading lines inside the eggshell and some background areas",
+          "severity": "minor",
+          "suggestion": "Reduce or simplify internal hatching to larger, open shapes or replace with lighter/less dense line work so the areas are easier to color and reproduce when printed."
+        },
+        {
+          "issue": "Very fine details and thin lines in flowers, grasses and some texture areas",
+          "severity": "minor",
+          "suggestion": "Slightly thicken key contour lines and close tiny gaps to ensure clean printing and easier coloring, especially for younger users or small-format prints."
+        },
+        {
+          "issue": "Sketchy/rough marks at the outer border corners",
+          "severity": "minor",
+          "suggestion": "Clean up or smooth the border corners to maintain a consistent clean frame and remove unintended stray marks."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background (no color present)",
+        "Sharp, clear lines with good contrast",
+        "Consistent and attractive line weight overall",
+        "No visible deformities or AI artifacts",
+        "Well-composed scene with many enclosed regions suitable for coloring"
+      ],
+      "summary": "High-quality black-and-white coloring page with clear, clean line art and good composition; simplify some dense hatching and thicken a few thin lines for optimal printing and easier coloring."
+    },
+    "ui_batch_U37_attempt1_1771754540.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Dense cross-hatching and heavy line clusters create near-gray areas (subtle shading)",
+          "severity": "minor",
+          "suggestion": "Reduce the density of hatching in large fill areas or convert some hatch strokes to single contour lines so regions remain clearly printable and easier to color."
+        },
+        {
+          "issue": "Very fine, intricate hatch details and tiny enclosed spaces may be difficult to color, especially for young children",
+          "severity": "minor",
+          "suggestion": "Simplify or slightly enlarge some of the smallest textured areas (especially inside the shell and on lily pads) to create more usable coloring regions."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color",
+        "Sharp, clean lines and crisp edges suitable for printing",
+        "Well-composed scene with clear, enclosed shapes for coloring",
+        "No visible deformities, AI artifacts, or duplicated/merged elements"
+      ],
+      "summary": "High-quality black-and-white coloring page with crisp line work and good composition; minor simplification of dense hatching and very fine details would improve usability for coloring."
+    },
+    "ui_batch_U36_attempt1_1771754524.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Dense cross-hatching and fine internal shading create the appearance of a gray tint in some areas.",
+          "severity": "minor",
+          "suggestion": "Reduce or simplify cross-hatching density, or replace with more open line textures so large regions remain clearly white for coloring."
+        },
+        {
+          "issue": "Very thin, closely spaced lines and small detailed areas (e.g., fine hatch marks, tiny water ripples) may be hard to color and could break when printed.",
+          "severity": "minor",
+          "suggestion": "Thicken primary outlines and simplify or remove extremely small marks; enlarge or merge tiny enclosed regions to make them colorable."
+        },
+        {
+          "issue": "High overall detail and many small petals/lily-pad segments may be overwhelming for young colorers.",
+          "severity": "minor",
+          "suggestion": "Provide a simplified alternative line version with reduced detail or offer thicker guiding outlines for main shapes to improve accessibility for younger audiences."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color present",
+        "Sharp, clean lines and high-resolution detail",
+        "Consistent line-weight hierarchy and clear composition",
+        "Subject matter and enclosed shapes are appropriate for a coloring book"
+      ],
+      "summary": "Excellent pure black line-art coloring page with crisp lines and well-composed elements; consider simplifying dense hatching and tiny details to improve printability and ease of coloring."
+    },
+    "ui_batch_U35_attempt1_1771754507.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Dense cross-hatching and heavy textural shading create areas that read as gray rather than pure line art.",
+          "severity": "minor",
+          "suggestion": "Reduce or simplify cross-hatching in large shaded areas; replace with lighter line patterns or leave them as open regions so they print as pure black outlines without looking like filled gray."
+        },
+        {
+          "issue": "Very fine details and some small enclosed regions may be difficult to color, especially for younger users.",
+          "severity": "minor",
+          "suggestion": "Thicken or simplify a few of the smallest lines and slightly enlarge tiny enclosed spaces to improve usability for a broader age range."
+        }
+      ],
+      "strengths": [
+        "Clean black line art on white background with no color present",
+        "Sharp, well-defined lines and edges",
+        "No visible deformities, AI artifacts, or duplicated elements",
+        "Balanced composition with clear enclosed shapes suitable for coloring"
+      ],
+      "summary": "High-quality black-and-white line art that is print-ready and well-composed; consider reducing heavy cross-hatching and simplifying some tiny details to improve coloring usability."
+    },
+    "ui_batch_U34_attempt1_1771754493.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Very fine hatching and dense detail create many tiny enclosed regions that may be difficult to color (especially for young children).",
+          "severity": "minor",
+          "suggestion": "Simplify or reduce interior hatching, thicken some outlines, or merge very small shapes to create larger, easier-to-color regions."
+        },
+        {
+          "issue": "Small stray ink specks and dots around the composition.",
+          "severity": "minor",
+          "suggestion": "Clean up stray marks using an eraser or by removing noise in a raster/vector editor to ensure fully clean white areas."
+        },
+        {
+          "issue": "A few tiny gaps between overlapping lines could cause flooding tools to leak when used in digital coloring.",
+          "severity": "minor",
+          "suggestion": "Close small gaps and ensure outlines form fully enclosed regions; consider a quick path validation or flood-fill test."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color — ideal for coloring books.",
+        "Sharp, clean lines and high contrast make details readable.",
+        "Balanced, appealing composition with enclosed areas suitable for coloring.",
+        "No obvious anatomical or AI artifact deformities; line quality is consistent."
+      ],
+      "summary": "High-quality black-and-white line art well suited for a coloring book with only minor cleanup and simplification recommended for easier coloring."
+    },
+    "ui_batch_U33_attempt1_1771754478.png": {
+      "passed": true,
+      "score": 93,
+      "issues": [
+        {
+          "issue": "Very fine, highly detailed line work and some narrow open line regions (especially in the flowing water and clustered foliage) may make it difficult to color cleanly or for younger colorists to fill.",
+          "severity": "minor",
+          "suggestion": "Slightly thicken primary outline strokes and close or simplify small gaps in the water and dense foliage areas so regions become more clearly enclosed for easier coloring."
+        },
+        {
+          "issue": "Extremely thin hatch/stippling/detail lines could reproduce faintly on lower-quality printers.",
+          "severity": "minor",
+          "suggestion": "Increase minimum stroke weight for the finest details or remove non-essential hatching so lines remain solid when printed."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with strong black/white contrast",
+        "Crisp, sharp lines and clean edges with no visible blur",
+        "No deformities, AI artifacts, or duplicated elements detected",
+        "Well-composed, balanced scene with attractive, varied elements suitable for a coloring page"
+      ],
+      "summary": "High-quality black-and-white coloring page with crisp, clean line art and excellent composition; consider slightly thickening primary outlines and closing tiny gaps to improve print robustness and ease of coloring."
+    },
+    "ui_batch_U32_attempt1_1771754461.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Very fine hatching and extremely small enclosed regions (leaf clusters, texture lines) may be difficult to color, especially for young children.",
+          "severity": "minor",
+          "suggestion": "Simplify or slightly enlarge some of the tiniest enclosed areas and reduce micro-hatching density so regions are easier to fill with crayons or markers."
+        },
+        {
+          "issue": "Extremely thin hairline strokes and dense cross-hatching create a subtle gray appearance in places that could print as a light tint rather than solid black.",
+          "severity": "minor",
+          "suggestion": "Thicken the thinnest strokes slightly and increase black channel contrast to ensure solid black reproduction when printed."
+        },
+        {
+          "issue": "A few tightly spaced hatch lines and tiny gaps along detailed edges could allow color bleed or make boundary detection harder for automated processing.",
+          "severity": "minor",
+          "suggestion": "Close tiny gaps along outlines and reduce extremely close parallel hatch lines in high-detail areas to maintain clean enclosed regions."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color present",
+        "Sharp, crisp lines and high-resolution detail with clean edges",
+        "No visible deformities, AI artifacts, or duplicated elements",
+        "Well-composed, balanced scene with clear subject focus suitable for a coloring book"
+      ],
+      "summary": "High-quality black-and-white line art, crisp and artifact-free, with only minor adjustments recommended to simplify very fine hatching and tiny enclosed areas for easier coloring and reliable printing."
+    },
+    "ui_batch_U31_attempt1_1771754443.png": {
+      "passed": true,
+      "score": 88,
+      "issues": [
+        {
+          "issue": "Very dense cross-hatching and fine shading in some areas creates a gray tint that could print as subtle tone rather than pure white areas.",
+          "severity": "minor",
+          "suggestion": "Reduce the density of hatching, convert some shaded areas to simple contour lines or larger hatch strokes to maintain high-contrast black-on-white for printing."
+        },
+        {
+          "issue": "Extremely small enclosed regions and very fine details (tiny leaves, feather lines, tight bark textures) may be difficult to color, especially for younger users.",
+          "severity": "major",
+          "suggestion": "Simplify or enlarge small shapes and reduce micro-detail in selected areas so larger, clearly bounded regions remain for comfortable coloring."
+        },
+        {
+          "issue": "A few thin gaps and narrowly separated line segments around twigs, cracks, and small decorations could allow color to bleed between regions.",
+          "severity": "minor",
+          "suggestion": "Close or thicken small gaps in outlines and ensure major shapes are fully enclosed so fill areas remain discrete."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color present",
+        "Sharp, clean lines and consistent line weight",
+        "No visible AI artifacts or deformities; anatomy and structure are coherent",
+        "Balanced, appealing composition well-suited to a coloring book theme"
+      ],
+      "summary": "High-quality black-and-white line art that is print-ready overall, but would benefit from reducing micro-hatching and simplifying some tiny areas to improve coloring usability."
+    },
+    "ui_batch_U30_attempt1_1771754428.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Subtle non-black color present (faint cyan/teal strokes in the water)",
+          "severity": "minor",
+          "suggestion": "Convert all colored strokes to pure black (RGB 0,0,0) or desaturate image so all lines are true black; remove any colored tints in the water area."
+        },
+        {
+          "issue": "Very fine hatching and many tiny enclosed regions may be difficult to color by hand",
+          "severity": "minor",
+          "suggestion": "Slightly simplify or enlarge some small enclosed areas (flowers, tiny dots) or selectively thicken interior lines to create more colorable regions."
+        },
+        {
+          "issue": "Some thin line weights could print faintly at smaller scales",
+          "severity": "minor",
+          "suggestion": "Increase the minimum stroke weight for the final print file to ensure consistent visibility when printed."
+        }
+      ],
+      "strengths": [
+        "Clean, well-composed focal design with strong visual flow",
+        "Sharp, detailed linework with good contrast against white background",
+        "No visible deformities, AI artifacts, or merged elements",
+        "Overall enclosed regions and shapes are suitable for coloring"
+      ],
+      "summary": "High-quality black-and-white line art suitable for a coloring book with only minor fixes recommended (remove subtle color tint and slightly adjust a few fine lines/very small areas)."
+    },
+    "ui_batch_U29_attempt1_1771754409.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Very fine hatching and micro-lines in foliage and bark may reproduce as light gray or disappear when printed.",
+          "severity": "minor",
+          "suggestion": "Increase contrast by converting all lines to pure black, or slightly thicken the finest hatch strokes so they remain visible after printing."
+        },
+        {
+          "issue": "Extremely small enclosed regions and dense detail create many tiny islands that are difficult to color, especially for children.",
+          "severity": "minor",
+          "suggestion": "Simplify or merge some tiny shapes and reduce overly intricate texture in selected areas to create larger, friendlier regions for coloring."
+        },
+        {
+          "issue": "A few sketchy/fragmented outlines (small gaps) in foliage and decorative elements could allow color bleed when filled.",
+          "severity": "minor",
+          "suggestion": "Close small gaps and smooth fragmented outlines so areas are fully enclosed for easier filling."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color present",
+        "High level of detail and strong composition centered around the tree and egg-shell scene",
+        "Sharp, clear lines and readable drawing with no obvious AI artifacts or deformities",
+        "Balanced composition with many clearly defined areas suitable for coloring once simplified slightly"
+      ],
+      "summary": "Strong, clean black-and-white line art well-suited for a coloring book, with only minor adjustments recommended (thicken very fine hatching, close tiny gaps, and simplify some micro-details) to improve print reproduction and ease of coloring."
+    },
+    "ui_batch_U28_attempt1_1771754390.png": {
+      "passed": true,
+      "score": 95,
+      "issues": [
+        {
+          "issue": "Dense cross-hatching and textured shading in fur and background creates areas that read as gray rather than clean white space.",
+          "severity": "minor",
+          "suggestion": "Reduce the density of hatching or replace some hatch shading with simpler outlines or larger white areas so the image stays high-contrast and easier to color."
+        },
+        {
+          "issue": "Very small details and narrow gaps in foliage, shell cracks and tiny ground elements could make flood-fill coloring or printing at small sizes difficult.",
+          "severity": "minor",
+          "suggestion": "Close tiny gaps and slightly enlarge or simplify the smallest elements to create more clearly enclosed color regions for easier coloring and reliable fill-tool performance."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on a white background with no detectable color",
+        "Sharp, clean lines and high clarity with no blur",
+        "No deformities, AI artifacts, or visual noise",
+        "Well-composed scene with balanced elements and mostly enclosed regions suitable for coloring"
+      ],
+      "summary": "Excellent black-and-white line art suitable for a coloring book with only minor suggestions to simplify dense hatching and close very small gaps for easier coloring and printing."
+    },
+    "ui_batch_U27_attempt1_1771754372.png": {
+      "passed": true,
+      "score": 88,
+      "issues": [
+        {
+          "issue": "Fine hatching and very light strokes create a subtle gray tint in some canopy and textured areas.",
+          "severity": "minor",
+          "suggestion": "Reduce or convert some hatching to pure black outlines and larger enclosed shapes, or increase contrast so lines print as solid black rather than appearing gray."
+        },
+        {
+          "issue": "Extremely small, highly detailed areas and thin internal lines may be difficult to color, especially for younger users.",
+          "severity": "minor",
+          "suggestion": "Simplify or thicken select internal details, or offer a second simplified version with larger enclosed regions for easier coloring."
+        },
+        {
+          "issue": "A few very thin strokes and cross-hatch marks could leave tiny gaps that allow color to bleed out when printed.",
+          "severity": "minor",
+          "suggestion": "Close small gaps and slightly thicken key boundary lines (especially around small cavities and the egg shell rim) to ensure fully enclosed regions for coloring."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color present",
+        "Highly detailed, crisp and sharp lines with excellent readability",
+        "Strong composition and imaginative concept suitable for a coloring book page",
+        "Consistent line weight and clean edges that reproduce well in print"
+      ],
+      "summary": "Beautiful, print-ready black-and-white line art with excellent clarity and composition; minor simplification or contrast tweaks would improve coloring usability for all ages."
+    },
+    "ui_batch_U26_attempt1_1771754355.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Dense cross-hatching and heavy line clusters create gray-looking areas in places (inside eggshell, some fur), which can read as shading rather than pure black line art.",
+          "severity": "minor",
+          "suggestion": "Reduce the density of hatching or replace some hatch strokes with clean white space or simpler lines to preserve pure black-on-white appearance and make larger colorable regions."
+        },
+        {
+          "issue": "Very fine details and many tiny enclosed regions (individual fur strokes, small flowers, tiny cracks) may be difficult to color, especially for younger users.",
+          "severity": "minor",
+          "suggestion": "Simplify or widen some of the smallest areas and reduce unnecessary micro-details to create more open regions suitable for coloring."
+        },
+        {
+          "issue": "A few areas have overlapping sketch lines and closely spaced strokes that could read as tiny gaps or visual noise at lower print resolutions.",
+          "severity": "minor",
+          "suggestion": "Clean up overlapping stray strokes and ensure outlines are continuous and bold enough so they remain clear when printed at typical coloring-book sizes."
+        }
+      ],
+      "strengths": [
+        "Pure black line art with high contrast on white background",
+        "Sharp, clean lines and consistent line weight overall",
+        "No visible AI artifacts, deformities, or unintended extra limbs",
+        "Well-composed, balanced scene with charming characters and clear focal point",
+        "Most regions are properly enclosed and suitable for coloring"
+      ],
+      "summary": "High-quality black-and-white line art with excellent clarity and composition; remove some dense hatching and tiny micro-details to improve print and coloring usability."
+    },
+    "ui_batch_U25_attempt1_1771754339.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Dense hatching and crosshatching in fur and shadow areas creates many very small enclosed regions that may be difficult to color cleanly.",
+          "severity": "minor",
+          "suggestion": "Reduce or simplify internal hatching (use fewer strokes or larger shapes) and/or widen gaps so small areas become easier to fill with crayons or markers."
+        },
+        {
+          "issue": "Very fine details (thin grass blades, tiny rocks, small mushrooms) may be too intricate for younger children.",
+          "severity": "minor",
+          "suggestion": "Either thicken or simplify some of the finer elements or provide an alternate simplified version with broader regions for younger audiences."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color – ideal for printing",
+        "Crisp, sharp lines and clean edges with good contrast",
+        "Well-composed, balanced scene with enclosed regions suitable for coloring",
+        "No visible AI artifacts, deformities, or duplicated elements"
+      ],
+      "summary": "High-quality black-and-white line art suitable for a coloring book with only minor adjustments suggested to simplify dense hatching and some very fine details for easier coloring."
+    },
+    "ui_batch_U24_attempt1_1771754324.png": {
+      "passed": false,
+      "score": 45,
+      "issues": [
+        {
+          "issue": "Colored logo/area present in bottom-right corner (contains pastel colors).",
+          "severity": "critical",
+          "suggestion": "Remove or convert the logo to pure black-and-white line art so the entire page is monochrome for printing."
+        },
+        {
+          "issue": "Fine hatching and very thin lines create many tiny regions that may be difficult to color, especially for younger users.",
+          "severity": "minor",
+          "suggestion": "Thicken some of the extremely fine hatch lines and simplify dense texture areas to create larger, more colorable regions."
+        },
+        {
+          "issue": "Some interior hatch marks and texture lines are very close together and could appear as gray tint when printed at small sizes.",
+          "severity": "minor",
+          "suggestion": "Reduce hatch density or use solid outlines in shadow areas to maintain pure black line art without unintended gray tones."
+        }
+      ],
+      "strengths": [
+        "Clear, sharp black linework for the main illustration",
+        "Clean edges and well-defined characters with no obvious deformities",
+        "Balanced composition with enclosed regions suitable for coloring after minor adjustments",
+        "No AI artifacts, duplicated elements, or visual noise in the primary artwork"
+      ],
+      "summary": "Excellent line art and composition but fails because of a colored logo and some overly fine hatching—convert to pure black-and-white and simplify very fine textures to make it suitable for a coloring book."
+    },
+    "ui_batch_U23_attempt1_1771754308.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Very dense cross-hatching and fine texture lines inside characters and shell create many tiny enclosed regions that may be hard to color cleanly.",
+          "severity": "minor",
+          "suggestion": "Reduce cross-hatch density or convert some hatch areas to larger, simpler shapes; increase region sizes where feasible to make coloring easier."
+        },
+        {
+          "issue": "A few very thin sketchy strokes and small scattered ink specks around the composition could appear as noise when printed.",
+          "severity": "minor",
+          "suggestion": "Clean up stray specks and slightly thicken a few extremely thin strokes to improve print clarity and reduce visual noise."
+        },
+        {
+          "issue": "Some small gaps in outlines (especially around delicate flowers and small details) could allow color to 'bleed' outside regions when filling.",
+          "severity": "minor",
+          "suggestion": "Close tiny outline gaps and ensure outer contour lines are continuous to preserve enclosed coloring areas."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color present",
+        "Crisp, well-drawn composition and balanced layout suitable for a coloring page",
+        "Clear character shapes and largely enclosed regions designed for coloring",
+        "Consistent and attractive line style with good contrast for printing"
+      ],
+      "summary": "High-quality pure black line art that's well composed for a coloring book with only minor clean-up recommended (simplify dense hatching, remove stray specks, and close a few tiny gaps)."
+    },
+    "ui_batch_U22_attempt1_1771754286.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Very fine, dense cross-hatching in some areas produces a grayish tone that reduces high-contrast black/white appearance.",
+          "severity": "minor",
+          "suggestion": "Reduce or simplify dense hatching to preserve pure black line art; use sparser texture lines or convert hatching to optional texture layers so regions remain bright white for coloring."
+        },
+        {
+          "issue": "Some extremely thin details and tiny specks around the image may not reproduce well when printed and can be hard to color.",
+          "severity": "minor",
+          "suggestion": "Remove stray dots and slightly increase thickness of the finest lines (especially in small petals and peripheral details) to ensure consistent printing and visibility."
+        },
+        {
+          "issue": "A few very small gaps in intricate outlines could allow color to bleed if someone fills digitally.",
+          "severity": "minor",
+          "suggestion": "Close tiny outline gaps and strengthen edge continuity around small enclosed regions to ensure they are fully colorable."
+        }
+      ],
+      "strengths": [
+        "Clean black line art on white background with no color present",
+        "Sharp, high-resolution lines and readable detail",
+        "Balanced composition with a clear central subject suitable for a coloring page",
+        "Good variety of enclosed regions and shapes for coloring",
+        "No visible AI artifacts, deformations, or duplicated elements"
+      ],
+      "summary": "High-quality black-and-white coloring page with crisp lines and excellent composition; only minor adjustments (reduce dense hatching, remove stray specks, and close tiny gaps) would improve printability and colorability."
+    },
+    "ui_batch_U21_attempt1_1771754272.png": {
+      "passed": true,
+      "score": 94,
+      "issues": [
+        {
+          "issue": "Fine hatch shading and very small details create tiny regions that may be difficult for younger colorists to fill.",
+          "severity": "minor",
+          "suggestion": "Thicken primary outlines and simplify or enlarge extremely small enclosed areas (e.g., dense hatching on the egg and tiny facial details) so they are easier to color."
+        },
+        {
+          "issue": "Small stray sketch marks and ink specks around the composition.",
+          "severity": "minor",
+          "suggestion": "Clean up stray dots and incidental strokes (use a threshold/cleaning pass or manually erase) to produce uniformly clean black-on-white line art."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on a white background with no color present",
+        "Sharp, clear lines and high contrast suitable for printing",
+        "Well-balanced composition with many enclosed regions for coloring",
+        "No obvious deformities, AI artifacts, or duplicated elements"
+      ],
+      "summary": "Excellent black-and-white coloring page with crisp line work and balanced composition; only minor cleanup and slight simplification of very fine details recommended for easier coloring."
+    },
+    "ui_batch_U20_attempt1_1771754256.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Paper texture and subtle gray background noise",
+          "severity": "minor",
+          "suggestion": "Flatten background to pure white (remove paper grain) to improve contrast and printing consistency."
+        },
+        {
+          "issue": "Extensive fine hatching and very small enclosed areas",
+          "severity": "minor",
+          "suggestion": "Reduce or simplify dense hatching and tiny details so larger, clean regions remain for easy coloring; consolidate some small shapes into bigger fillable areas."
+        },
+        {
+          "issue": "A few tiny gap lines and sketchy strokes around edges",
+          "severity": "minor",
+          "suggestion": "Close small gaps and clean stray sketch marks (use vector cleanup or a brush pass) so enclosed regions are fully sealed for flood-fill or manual coloring."
+        }
+      ],
+      "strengths": [
+        "Pure black line art with no color present",
+        "Strong, clear composition with balanced elements",
+        "Lines are sharp and well-drawn with consistent stylistic weight",
+        "No anatomical deformities or obvious AI artifacts"
+      ],
+      "summary": "High-quality black-and-white line art suitable for a coloring book with only minor cleanup needed (remove paper texture, simplify dense hatching, and close tiny gaps) to maximize print and coloring usability."
+    },
+    "ui_batch_U19_attempt1_1771754240.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Dense cross-hatching and very fine shading inside the nest and around the chick",
+          "severity": "minor",
+          "suggestion": "Reduce the amount of cross-hatching or convert dense hatching to larger, simpler shapes so areas remain easy to color and do not create many tiny regions."
+        },
+        {
+          "issue": "Very small details and tiny gaps (pebbles, fine twig ends, and hatch marks)",
+          "severity": "minor",
+          "suggestion": "Close or thicken tiny gaps and simplify some of the smallest details so that fill tools or traditional coloring don't bleed out through micro-gaps."
+        },
+        {
+          "issue": "Background vertical texture lines create visual noise",
+          "severity": "minor",
+          "suggestion": "Consider lightening or removing the vertical texture lines in the background to keep the page cleaner and less distracting for coloring."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background (no color present)",
+        "Sharp, clean lines with high contrast",
+        "Well-composed and balanced scene with clear focal point",
+        "Main regions (eggs, chick, nest, surrounding flowers) are largely enclosed and suitable for coloring",
+        "Consistent, appealing line style and weight"
+      ],
+      "summary": "High-quality black-and-white line art that is well suited for a coloring book; simplify a few dense hatching areas and tiny details for easier coloring."
+    },
+    "ui_batch_U18_attempt1_1771754226.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Very fine hatching and extremely thin lines in shaded areas may not reproduce well on all printers or may fill in when printed at small sizes.",
+          "severity": "minor",
+          "suggestion": "Thicken the finest hatch strokes slightly and reduce density of cross-hatching so shading remains readable when printed; keep primary outlines bold enough to retain shape."
+        },
+        {
+          "issue": "Small speckles and tiny debris-like dots around the composition could be perceived as noise and may distract from coloring.",
+          "severity": "minor",
+          "suggestion": "Remove or reduce non-essential speckles and stray marks, leaving intentional texture only where it supports the design."
+        },
+        {
+          "issue": "Some very small enclosed areas between petals and foliage may be difficult to color cleanly, especially for younger users.",
+          "severity": "minor",
+          "suggestion": "Slightly widen or simplify a few of the smallest gaps and enclosed regions to make them easier to color while preserving detail."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color — ideal for coloring books",
+        "Sharp, clean lines and high contrast provide excellent clarity",
+        "Well-composed, balanced illustration with clear enclosed regions for coloring",
+        "No visible anatomical deformities, AI artifacts, or duplicated glitches"
+      ],
+      "summary": "High-quality black-and-white line art suitable for a coloring book with only minor tweaks recommended to improve print robustness and ease of coloring."
+    },
+    "ui_batch_U17_attempt1_1771754212.png": {
+      "passed": true,
+      "score": 90,
+      "issues": [
+        {
+          "issue": "Extensive fine hatching creates areas of visual gray rather than pure white/black contrast",
+          "severity": "minor",
+          "suggestion": "Reduce cross-hatching density or convert some hatch areas to clean stippling or simplified line shading to preserve strong black/white contrast for printing and coloring."
+        },
+        {
+          "issue": "Very thin/detail lines and small enclosed areas may be difficult for younger colorists or low-resolution printing",
+          "severity": "minor",
+          "suggestion": "Slightly thicken the thinnest interior strokes and enlarge or simplify the tiniest enclosed regions so they are easier to fill with color and reproduce in lower DPI prints."
+        },
+        {
+          "issue": "A few tiny gaps along cracked shell edges could allow color bleed when filling digitally or in print",
+          "severity": "minor",
+          "suggestion": "Close small gaps along shell cracks and between overlapping strokes to ensure regions are fully enclosed before exporting for print."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color present",
+        "Sharp, clean lines and good edge definition",
+        "Well-composed scene with balanced elements and clear focal point",
+        "Line weight variation provides depth without introducing artifacts",
+        "Most areas are well-enclosed and suitable for coloring"
+      ],
+      "summary": "High-quality black-and-white coloring page with sharp linework and good composition; reduce very fine hatching, close tiny gaps, and thicken the smallest details for optimal printing and ease of coloring."
+    },
+    "ui_batch_U16_attempt1_1771754198.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Fine cross-hatching and many small internal hatch lines inside the nest create numerous tiny regions that can be difficult to fill cleanly.",
+          "severity": "minor",
+          "suggestion": "Reduce density of cross-hatching or simplify some internal texture lines so larger, well-defined areas remain for easy coloring."
+        },
+        {
+          "issue": "A few very thin stray marks and small speckles around the composition may print as noise.",
+          "severity": "minor",
+          "suggestion": "Remove or clean up tiny stray dots and debris, especially near edges, to ensure a crisp print."
+        },
+        {
+          "issue": "Some narrow gaps between overlapping nest twigs and egg outlines could be perceived as open regions when coloring.",
+          "severity": "minor",
+          "suggestion": "Close tiny gaps by slightly thickening or extending adjacent contour lines to create fully enclosed color regions."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on a white background with no color present",
+        "Sharp, clear lines and readable detail suitable for printing",
+        "Strong composition and well-defined central shapes (birds, eggs, nest)",
+        "Consistent line weight and clean black/white contrast"
+      ],
+      "summary": "High-quality black-and-white line art well suited for a coloring book with only minor cleanup recommended to simplify dense hatching and remove tiny stray marks."
+    },
+    "ui_batch_U15_attempt1_1771754185.png": {
+      "passed": true,
+      "score": 90,
+      "issues": [
+        {
+          "issue": "Extensive cross-hatching and dense shading in the nest interior and on chicks creates many small dark areas.",
+          "severity": "minor",
+          "suggestion": "Reduce or simplify hatching in large regions to create bigger contiguous areas for coloring; use lighter single-direction hatching or leave more white space."
+        },
+        {
+          "issue": "Scattered sketch marks, speckles and faint grid lines appear around the edges and background.",
+          "severity": "minor",
+          "suggestion": "Clean up stray marks and background grid lines to ensure a pure white background and avoid distraction when printed."
+        },
+        {
+          "issue": "Very fine detailed lines and tiny fragments (small twigs, pebbles, and leaf veins) could be hard to color or may break when scaled.",
+          "severity": "minor",
+          "suggestion": "Simplify or thicken some of the very fine details and close any tiny gaps so areas remain fillable when printed at different sizes."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white (no color present)",
+        "Cute, balanced composition with clear main subjects",
+        "Well-defined outlines for the chicks and nest",
+        "Overall sharp lines and readable detail suitable for a coloring page"
+      ],
+      "summary": "Strong black-and-white line art with charming composition; minor cleanup and simplification of dense hatching and stray marks will improve printability and ease of coloring."
+    },
+    "ui_batch_U14_attempt1_1771754164.png": {
+      "passed": true,
+      "score": 90,
+      "issues": [
+        {
+          "issue": "Very small, highly detailed enclosed areas and many tiny gaps that could be difficult to color or may cause issues when printing.",
+          "severity": "major",
+          "suggestion": "Enlarge or simplify some of the smallest elements, close tiny gaps in outlines, and increase minimum region size so children can color cleanly; consider creating a simplified version with reduced fine detail for younger audiences."
+        },
+        {
+          "issue": "Extensive fine hatching and cross-hatching used for shading and texture can appear as gray tint or visual noise when printed.",
+          "severity": "minor",
+          "suggestion": "Replace dense hatching with cleaner, single-weight texture lines or remove some hatch lines to preserve pure black-on-white contrast and avoid a gray appearance when printed."
+        },
+        {
+          "issue": "Occasional very thin lines and varied line weight may become faint or break at lower print resolutions.",
+          "severity": "minor",
+          "suggestion": "Thicken the thinnest strokes slightly and standardize primary outline weights to maintain clarity at typical coloring-book print resolutions (150–300 DPI)."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on a white background with no color — ideal for a coloring book.",
+        "High line clarity and crisp edges; details are well-rendered and readable.",
+        "No visible AI artifacts, deformities, or extraneous marks; composition is charming and balanced.",
+        "Good use of enclosed regions overall, with many clear shapes suitable for coloring at normal scale."
+      ],
+      "summary": "Excellent black-and-white line art suitable for a coloring book with strong clarity and composition, though simplify or close some tiny details and reduce dense hatching to improve print/coloring usability."
+    },
+    "ui_batch_U13_attempt1_1771754150.png": {
+      "passed": true,
+      "score": 88,
+      "issues": [
+        {
+          "issue": "Very high level of fine detail and many tiny enclosed regions that will be difficult to color (small fruits, dense textures, and tiny hatches).",
+          "severity": "minor",
+          "suggestion": "Simplify or remove some of the smallest elements, increase the size of key color regions, or thicken lines around tiny objects so they form usable coloring areas."
+        },
+        {
+          "issue": "Dense hatching and cross-hatching in shadowed areas creates visual noise that can read as gray tone when printed.",
+          "severity": "minor",
+          "suggestion": "Reduce hatching density or replace heavy texture with clean outlines or fewer hatch lines to preserve pure black-on-white contrast."
+        },
+        {
+          "issue": "A few micro-gaps and overlapping strokes could allow 'color bleed' when filling digitally or make regions ambiguous by eye.",
+          "severity": "minor",
+          "suggestion": "Close tiny gaps and unify overlapping strokes so that regions are fully enclosed and clearly separated for easy coloring."
+        },
+        {
+          "issue": "Very thin line weights in some areas may not reproduce well on all printers (can become faint or disappear).",
+          "severity": "minor",
+          "suggestion": "Raise the minimum stroke weight slightly (e.g., to a consistent printable minimum) to ensure all lines print clearly."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color — ideal for a coloring book",
+        "Clean, sharp lines and high overall clarity",
+        "No obvious deformities, AI artifacts, or duplicated/merged objects",
+        "Strong, balanced composition with well-defined market scene elements",
+        "Consistent overall line quality and good contrast"
+      ],
+      "summary": "Excellent pure black line art with strong composition and clarity; reduce some extremely fine detail, dense hatching, and close tiny gaps to improve printability and coloring usability."
+    },
+    "ui_batch_U12_attempt1_1771754138.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Very fine hatching and cross-hatching create many tiny enclosed areas that may be difficult to color, especially for younger users.",
+          "severity": "minor",
+          "suggestion": "Simplify or slightly thicken some of the finest hatch lines and close extremely small gaps so small regions become usable for coloring; consider grouping micro-texture into slightly larger shapes for kid-friendly versions."
+        },
+        {
+          "issue": "Subtle paper/scan artifacts and a few tiny specks are visible on the white background.",
+          "severity": "minor",
+          "suggestion": "Clean up the background (remove specks and even out paper tone) to ensure a pure white background for best printing results."
+        },
+        {
+          "issue": "Some line weight variation is very pronounced in tiny details which could reproduce faintly at small print sizes.",
+          "severity": "minor",
+          "suggestion": "Ensure the thinnest lines maintain enough contrast (slightly increase minimum stroke thickness) so details remain clear after printing and scanning."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on a white background with no color — ideal for coloring books",
+        "Sharp, clean lines and high clarity throughout the composition",
+        "Well-composed scene with balanced elements and mostly enclosed regions suitable for coloring",
+        "No visible deformities, AI artifacts, or duplicated elements"
+      ],
+      "summary": "High-quality black-and-white line art well-suited for a coloring book with only minor clean-up and slight line/thickness adjustments advised."
+    },
+    "ui_batch_U11_attempt1_1771754127.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Small ink splatters and scattered dots around the image",
+          "severity": "minor",
+          "suggestion": "Remove or reduce stray speckles and splatter marks for a cleaner print; keep intentional texture but eliminate unintended noise."
+        },
+        {
+          "issue": "Extensive fine hatching and very thin lines in shaded areas",
+          "severity": "minor",
+          "suggestion": "Thicken some hatch strokes slightly or simplify dense hatching so lines reproduce clearly at smaller print sizes and don't appear as gray muddiness."
+        },
+        {
+          "issue": "Some tiny enclosed regions and very narrow gaps between lines (difficult to color cleanly)",
+          "severity": "minor",
+          "suggestion": "Close small gaps and enlarge very small color regions where possible to make coloring easier, especially for young users."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color present",
+        "Sharp, high-contrast lines and clear details",
+        "Well composed subject with balanced elements suitable for a coloring page",
+        "No obvious deformities or AI artifacts; anatomy and shapes are consistent"
+      ],
+      "summary": "High-quality black-and-white line art suitable for a coloring book with only minor clean-up recommended (remove stray speckles, slightly thicken/simplify very fine hatching, and close tiny gaps)."
+    },
+    "ui_batch_U10_attempt1_1771754114.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Subtle hatching and gray-area shading throughout the drawing",
+          "severity": "minor",
+          "suggestion": "Reduce or simplify hatching where possible and convert hatch fills to clear enclosed areas with single-weight outlines so the image reads as pure black line art on white."
+        },
+        {
+          "issue": "Very high level of fine detail and many tiny enclosed regions",
+          "severity": "major",
+          "suggestion": "Simplify or enlarge some intricate clusters (small baskets, piled goods, and dense textures) to create larger, more colorable regions; increase spacing between tightly packed lines so crayons/markers don't bleed across."
+        },
+        {
+          "issue": "Occasional near-gaps and overlapping lines that may not register as fully closed regions",
+          "severity": "minor",
+          "suggestion": "Close small gaps and clean up overlapping strokes in critical boundaries (shelves, shell edges, small containers) to ensure regions fill cleanly in coloring workflows."
+        }
+      ],
+      "strengths": [
+        "Pure black line art with strong contrast against white background",
+        "Sharp, clean lines and high overall clarity",
+        "Consistent artistic style and balanced composition",
+        "Good variety of enclosed shapes suitable for coloring at multiple difficulty levels"
+      ],
+      "summary": "High-quality black-and-white line art well suited for a coloring book with minor refinements recommended to reduce hatching and simplify tiny details for easier coloring."
+    },
+    "ui_batch_U9_attempt1_1771754101.png": {
+      "passed": true,
+      "score": 94,
+      "issues": [
+        {
+          "issue": "Very fine, dense hatching and tiny details in some areas (e.g., roof, background textures) may be difficult to color cleanly, especially for younger children.",
+          "severity": "minor",
+          "suggestion": "Consider simplifying or slightly enlarging some of the smallest enclosed regions and reducing dense hatching in areas intended for coloring to create larger, more colorable spaces."
+        },
+        {
+          "issue": "Some narrow gaps and tightly spaced lines in intricate sections could cause ink bleed or printing issues on lower-quality paper.",
+          "severity": "minor",
+          "suggestion": "Thicken key contour lines slightly and close any tiny gaps so regions remain fully enclosed when printed at various sizes/qualities."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color — ideal for a coloring book.",
+        "Sharp, clean lines and high contrast for good print reproduction.",
+        "Well-composed, balanced scene with many enclosed regions suitable for coloring.",
+        "No visible deformities, AI artifacts, or visual noise; consistent line quality overall."
+      ],
+      "summary": "High-quality black-and-white line art well-suited for a coloring book; simplify a few very fine areas and thicken tiny gaps for optimal printing and easier coloring."
+    },
+    "ui_batch_U8_attempt1_1771754090.png": {
+      "passed": true,
+      "score": 94,
+      "issues": [
+        {
+          "issue": "Small ink speckles and splatter marks around the composition",
+          "severity": "minor",
+          "suggestion": "Remove or reduce stray dots and splatter to avoid distracting marks when printed."
+        },
+        {
+          "issue": "Dense cross-hatching and heavily textured areas create many very small regions",
+          "severity": "minor",
+          "suggestion": "Simplify or widen some hatching/texture so colorists (especially children) have usable enclosed areas to fill."
+        },
+        {
+          "issue": "A few very small gaps in the linework could allow color to 'bleed' when printed and colored",
+          "severity": "minor",
+          "suggestion": "Close tiny gaps and reinforce thin connections to ensure regions are fully enclosed."
+        },
+        {
+          "issue": "Some large solid black fills (deep shadows) remove opportunities for coloring",
+          "severity": "minor",
+          "suggestion": "Convert deep black fills to hatched shading or outlines to keep areas colorable while preserving contrast."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on a clean white background",
+        "Sharp, well-defined lines with consistent weight",
+        "Clean edges and no visible blur or AI artifacts",
+        "Balanced, appealing composition with clear focal elements",
+        "Most regions are well-enclosed and suitable for coloring"
+      ],
+      "summary": "High-quality black-and-white line art well suited for a coloring book with only minor cleanup and simplification recommended for optimal colorability."
+    },
+    "ui_batch_U7_attempt1_1771754077.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Dense hatching and crosshatching in background and some interior areas can read as gray tone rather than clean black line art.",
+          "severity": "minor",
+          "suggestion": "Reduce the density of hatching or convert some hatching to single-direction lines so areas remain clearly line-based and print as black-on-white."
+        },
+        {
+          "issue": "Very small enclosed regions (tiny gaps between leaves, succulent details, cactus spines) may be difficult to color, especially for young children.",
+          "severity": "minor",
+          "suggestion": "Enlarge or simplify some of the tiniest enclosed shapes or merge adjacent tiny areas so they are easier to fill with crayons or markers."
+        },
+        {
+          "issue": "Some fine texture lines and thin details may vanish or appear faint when printed at smaller sizes.",
+          "severity": "minor",
+          "suggestion": "Slightly thicken key outlines and very thin texture lines to ensure they reproduce clearly at common coloring-book page sizes."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with high contrast",
+        "Sharp, clean lines and readable detail",
+        "No visible AI artifacts, deformities, or duplicated elements",
+        "Well-composed, balanced layout with predominantly enclosed regions suitable for coloring"
+      ],
+      "summary": "High-quality black-and-white line art suitable for a coloring book with only minor refinements recommended to improve print clarity and colorability for young users."
+    },
+    "ui_batch_U6_attempt1_1771754065.png": {
+      "passed": true,
+      "score": 90,
+      "issues": [
+        {
+          "issue": "Very high level of fine detail and many tiny enclosed areas may be difficult to color (especially for young children).",
+          "severity": "minor",
+          "suggestion": "Simplify or enlarge some small elements, increase spacing between lines, and merge tiny regions to create larger coloring areas."
+        },
+        {
+          "issue": "Occasional very thin lines and dense hatching may not reproduce well at smaller print sizes.",
+          "severity": "minor",
+          "suggestion": "Increase the weight of very fine strokes and reduce or replace dense hatching with bolder outlines for better print clarity."
+        },
+        {
+          "issue": "Some small gaps in outlines could allow color bleed when filling digitally or with markers.",
+          "severity": "minor",
+          "suggestion": "Close small gaps in outlines and run a connectivity check to ensure regions are fully enclosed before finalizing."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background",
+        "Sharp, clean lines with strong black/white contrast",
+        "No visible AI artifacts, deformities, or duplicated glitches",
+        "Well-composed scene with clear focal point and balanced elements"
+      ],
+      "summary": "High-quality black-and-white line art suitable for a coloring book; mainly needs slight simplification and minor cleanup for optimal printing and younger colorists."
+    },
+    "ui_batch_U5_attempt1_1771754052.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Very high level of fine detail (many tiny enclosed regions and dense line work) may be too intricate for younger colorists or for some printing scales.",
+          "severity": "minor",
+          "suggestion": "Provide a simplified version with fewer tiny shapes or increase the scale/thickness of key outlines so small regions are easier to color; consider removing some very fine texture lines."
+        },
+        {
+          "issue": "Dense hatching and clustered short strokes in places produce visually darker/near-gray areas that can read like shading rather than pure line art.",
+          "severity": "minor",
+          "suggestion": "Reduce hatching density or replace with cleaner contour lines to maintain strong black-on-white contrast while preserving texture."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color present",
+        "Sharp, clean lines and readable details",
+        "Consistent line quality and strong black/white contrast",
+        "Balanced composition with clearly defined shapes and enclosed regions",
+        "No visible AI artifacts, deformities, or duplicated glitches"
+      ],
+      "summary": "High-quality black-and-white line art suitable for a coloring book; very detailed and crisp but could benefit from slightly reduced hatching and fewer tiny regions for easier coloring."
+    },
+    "ui_batch_U4_attempt1_1771754039.png": {
+      "passed": true,
+      "score": 88,
+      "issues": [
+        {
+          "issue": "Very high level of fine hatch shading and closely spaced lines creates many tiny enclosed regions that will be hard to color, especially for children.",
+          "severity": "minor",
+          "suggestion": "Reduce or remove dense hatching, simplify small textured areas, and enlarge key regions so they are easier to fill with color."
+        },
+        {
+          "issue": "Some strokes are extremely thin and sketchy which may not reproduce reliably on all printers and can appear faint.",
+          "severity": "minor",
+          "suggestion": "Thicken primary outlines and important interior lines slightly to ensure clear reproduction and maintain contrast when printed."
+        },
+        {
+          "issue": "Occasional very small gaps between lines could allow color bleeding when digitally filled or printed at lower resolution.",
+          "severity": "minor",
+          "suggestion": "Close tiny gaps and ensure outlines form well-enclosed shapes (auto-close gaps or manually edit) to improve fillability."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on white background with no color present",
+        "Sharp, detailed linework with clean edges and no visible blur",
+        "No obvious AI artifacts, deformities, or duplicated visual glitches",
+        "Well-composed scene with clear architectural forms and many enclosed areas suitable for coloring"
+      ],
+      "summary": "High-quality pure black line art that is print-ready but would benefit from reduced fine hatching and slightly thicker/cleaner outlines to improve fillability for typical coloring-book users."
+    },
+    "ui_batch_U3_attempt1_1771754025.png": {
+      "passed": true,
+      "score": 92,
+      "issues": [
+        {
+          "issue": "Very dense cross‑hatching and fine texture in areas creates a gray tint and can read as shading rather than pure black line art.",
+          "severity": "minor",
+          "suggestion": "Reduce or remove heavy hatching in large areas and convert texture to clean black outlines or simpler hatch marks so the image prints as crisp black line art."
+        },
+        {
+          "issue": "Extremely small, intricate enclosed regions (tiny gaps and micro details) that will be difficult to color, especially for young children.",
+          "severity": "minor",
+          "suggestion": "Enlarge or simplify some tiny shapes and close very small gaps so regions are easier to fill with crayons or markers."
+        },
+        {
+          "issue": "Background is highly detailed and could compete with main foreground elements, making composition busy when printed.",
+          "severity": "minor",
+          "suggestion": "Consider reducing background detail density or lightening/stylizing secondary elements to keep focus on the central characters and improve readability."
+        }
+      ],
+      "strengths": [
+        "Pure black line art with strong black/white contrast",
+        "Sharp, clean lines and readable detail",
+        "Consistent, deliberate line weight that creates depth",
+        "Well-composed scene with good enclosed regions for coloring",
+        "No visible AI artifacts, deformities, or broken lines"
+      ],
+      "summary": "High-quality black-and-white line art suitable for a coloring book; simplify some heavy hatching and tiny details to improve print clarity and coloring ease."
+    },
+    "ui_batch_U2_attempt1_1771754011.png": {
+      "passed": true,
+      "score": 90,
+      "issues": [
+        {
+          "issue": "Dense cross-hatching and very fine detail create many tiny regions that will be hard to color cleanly",
+          "severity": "minor",
+          "suggestion": "Simplify or reduce inner hatching in larger areas, and increase the size of some enclosed regions to make them easier to fill with crayons or markers."
+        },
+        {
+          "issue": "Paper texture and subtle ink variation introduce a light gray background/texture",
+          "severity": "minor",
+          "suggestion": "Flatten the background to pure white and remove paper grain or desaturate any texture so lines sit on a clean white field for printing."
+        },
+        {
+          "issue": "Some interior lines are very thin and could disappear when printed at smaller sizes",
+          "severity": "minor",
+          "suggestion": "Thicken primary outlines slightly and keep fine detail as secondary lines to preserve readability after scaling or printing."
+        }
+      ],
+      "strengths": [
+        "Pure black ink line work with no color areas",
+        "Sharp, clean lines and strong black/white contrast",
+        "No visible AI artifacts or deformities",
+        "Well-composed, balanced scene with clear focal point"
+      ],
+      "summary": "High-quality black-and-white line art suitable for a coloring book, with minor adjustments recommended to simplify fine hatching and remove paper texture for easier coloring and printing."
+    },
+    "ui_batch_U1_attempt1_1771753999.png": {
+      "passed": true,
+      "score": 90,
+      "issues": [
+        {
+          "issue": "Dense cross-hatching and fine shading create subtle gray tones",
+          "severity": "minor",
+          "suggestion": "Reduce the density of hatching or convert some shaded areas to simpler line patterns so the image remains pure black-on-white with clearer enclosed regions."
+        },
+        {
+          "issue": "Very small, highly detailed enclosed areas that may be difficult to color",
+          "severity": "minor",
+          "suggestion": "Enlarge or simplify a few of the tiniest regions (especially in foliage and rock textures) to improve usability for younger colorists or low-resolution prints."
+        },
+        {
+          "issue": "Small stray speckles and tiny marks around the composition edges",
+          "severity": "minor",
+          "suggestion": "Clean up background specks and stray pixels in an image editor to ensure a pristine white background for printing."
+        }
+      ],
+      "strengths": [
+        "Pure black line art on a clean white background with no color present",
+        "Sharp, well-defined lines and strong black/white contrast",
+        "Consistent artistic line weight and cohesive style",
+        "Balanced composition with clearly enclosed regions overall and no obvious deformities or AI artifacts"
+      ],
+      "summary": "High-quality black-and-white line art suitable for a coloring book, with only minor refinements recommended for shading density, a few tiny regions, and background cleanup."
+    }
+  }
+}

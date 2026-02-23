@@ -4,7 +4,14 @@ import streamlit as st
 import json
 from pathlib import Path
 
-from core.persistence import save_workflow_state, load_workflow_state, list_saved_states, delete_saved_state
+from core.persistence import (
+    save_workflow_state,
+    load_workflow_state,
+    list_saved_states,
+    delete_saved_state,
+    create_design_package,
+    save_design_package,
+)
 from features.design_generation.workflow import (
     run_coloring_book_agent,
     run_design_for_concept,
@@ -26,6 +33,19 @@ STEP_DISPLAY_NAMES = [
     "Generating MidJourney prompts",
     "Generating SEO keywords",
 ]
+
+
+def _save_or_update_design_package(state: dict, name: str | None = None) -> str:
+    """Create or update design package. Returns package path."""
+    from core.persistence import _update_design_package_metadata
+    pkg_path = state.get("design_package_path")
+    if pkg_path and Path(pkg_path).exists():
+        _update_design_package_metadata(state, pkg_path)
+        return pkg_path
+    path = create_design_package(state, name=name)
+    state["design_package_path"] = path
+    state["images_folder_path"] = path
+    return path
 
 
 def render_attempt(attempt: dict, attempt_num: int, component_type: str):
@@ -300,8 +320,8 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
                         if custom_instructions.strip():
                             mods["custom_instructions"] = custom_instructions.strip()
                         updated = rerun_design_with_modifications(state, mods)
+                        _save_or_update_design_package(updated)
                         st.session_state.workflow_state = updated
-                        save_workflow_state(updated)
                         st.rerun()
                     except Exception as e:
                         st.error(str(e))
@@ -313,8 +333,8 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
                         if custom_instructions.strip():
                             mods["custom_instructions"] = custom_instructions.strip()
                         updated = rerun_design_with_modifications(state, mods)
+                        _save_or_update_design_package(updated)
                         st.session_state.workflow_state = updated
-                        save_workflow_state(updated)
                         st.rerun()
                     except Exception as e:
                         st.error(str(e))
@@ -326,8 +346,8 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
                         if custom_instructions.strip():
                             mods["custom_instructions"] = custom_instructions.strip()
                         updated = rerun_design_with_modifications(state, mods)
+                        _save_or_update_design_package(updated)
                         st.session_state.workflow_state = updated
-                        save_workflow_state(updated)
                         st.rerun()
                     except Exception as e:
                         st.error(str(e))
@@ -339,8 +359,8 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
                         if custom_instructions.strip():
                             mods["custom_instructions"] = custom_instructions.strip()
                         updated = rerun_design_with_modifications(state, mods)
+                        _save_or_update_design_package(updated)
                         st.session_state.workflow_state = updated
-                        save_workflow_state(updated)
                         st.rerun()
                     except Exception as e:
                         st.error(str(e))
@@ -351,13 +371,13 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
                         concept = state.get("concept_source") or state.get("concept")
                         if concept:
                             updated = run_design_for_concept(concept)
+                            _save_or_update_design_package(updated)
                             st.session_state.workflow_state = updated
-                            save_workflow_state(updated)
                             st.rerun()
                         else:
                             updated = run_coloring_book_agent(state.get("user_request", ""))
+                            _save_or_update_design_package(updated)
                             st.session_state.workflow_state = updated
-                            save_workflow_state(updated)
                             st.rerun()
                     except Exception as e:
                         st.error(str(e))
@@ -382,8 +402,8 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
                 st.warning("Please enter a description before saving.")
             else:
                 try:
-                    filepath = save_workflow_state(state)
-                    st.success(f"Design saved as `{Path(filepath).name}`")
+                    path = _save_or_update_design_package(state)
+                    st.success(f"Design saved to package `{Path(path).name}`")
                     st.balloons()
                     st.rerun()
                 except Exception as e:
@@ -791,7 +811,9 @@ def render_design_generation_tab():
                                 new_results = results + [new_state]
                                 st.session_state.generation_results = new_results
                                 try:
-                                    save_workflow_state(new_state)
+                                    path = create_design_package(new_state)
+                                    new_state["design_package_path"] = path
+                                    new_state["images_folder_path"] = path
                                 except Exception:
                                     pass
                                 st.session_state.generation_step_state = None
@@ -902,39 +924,39 @@ def render_design_generation_tab():
         save_name = st.text_input("Save as:", value=workflow_state.get("title", ""), key="save_name_input")
         if st.button("Save Current Design", key="save_design_btn"):
             try:
-                filepath = save_workflow_state(workflow_state, name=save_name if save_name else None)
+                path = _save_or_update_design_package(workflow_state, name=save_name if save_name else None)
                 st.success("Design saved!")
                 st.rerun()
             except Exception as e:
                 st.error(f"Error saving: {e}")
 
-    st.markdown("**Load Previous Design**")
+    st.markdown("**Design Packages**")
+    from ui.components.design_selector import render_design_package_selector
+    render_design_package_selector(compact=False, key_prefix="design_gen_pkg")
+
+    st.markdown("**Legacy Designs** (metadata only)")
     saved_states = list_saved_states()
     if saved_states:
-        for state_info in saved_states[:10]:
+        for state_info in saved_states[:5]:
             with st.expander(f"{state_info['title']}", expanded=False):
                 st.caption(f"Saved: {state_info['saved_at']}")
-                if state_info['description']:
-                    st.text(state_info['description'][:150])
+                if not state_info.get("has_images"):
+                    st.warning("Legacy design: no images linked.")
                 col1, col2 = st.columns(2)
                 with col1:
-                    if st.button("Load", key=f"load_{state_info['name']}"):
-                        loaded_state = load_workflow_state(state_info['filepath'])
-                        if loaded_state:
-                            st.session_state.workflow_state = loaded_state
-                            st.success("Design loaded!")
+                    if st.button("Load", key=f"load_legacy_{state_info['name']}"):
+                        loaded = load_workflow_state(state_info["filepath"])
+                        if loaded:
+                            st.session_state.workflow_state = loaded
+                            st.success("Design loaded (images may be missing)")
                             st.rerun()
-                        else:
-                            st.error("Failed to load design")
                 with col2:
-                    if st.button("Delete", key=f"delete_{state_info['name']}"):
-                        if delete_saved_state(state_info['filepath']):
+                    if st.button("Delete", key=f"del_legacy_{state_info['name']}"):
+                        if delete_saved_state(state_info["filepath"]):
                             st.success("Deleted!")
                             st.rerun()
-                        else:
-                            st.error("Failed to delete")
     else:
-        st.caption("No saved designs yet. Generate a design and save it.")
+        st.caption("No legacy designs.")
 
     if workflow_state:
         pending_question = workflow_state.get("pending_question", "")
@@ -978,7 +1000,9 @@ def render_design_generation_tab():
                 st.session_state.is_running = False
                 if final_state.get("status") == "complete" and final_state.get("title"):
                     try:
-                        save_workflow_state(final_state)
+                        path = create_design_package(final_state)
+                        final_state["design_package_path"] = path
+                        final_state["images_folder_path"] = path
                     except Exception:
                         pass
                 st.rerun()

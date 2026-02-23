@@ -23,8 +23,9 @@ def _answer_question(query: str, context_chunks: list) -> str:
     )
     if not context.strip():
         context = "No relevant documentation found."
+    from config import GUIDE_CHAT_MODEL
     llm = ChatOpenAI(
-        model="gpt-4o-mini",
+        model=GUIDE_CHAT_MODEL,
         temperature=0.3,
         api_key=api_key,
     )
