@@ -10,6 +10,7 @@ from features.design_generation.tools.content_tools import (
     expand_and_research_theme,
     generate_and_refine_title_description,
     generate_and_refine_prompts,
+    generate_and_refine_cover_prompts,
     generate_and_refine_keywords,
 )
 from features.design_generation.tools.search_tools import web_search, search_coloring_book_trends
@@ -40,17 +41,22 @@ EXECUTOR_SYSTEM_PROMPT = """You are an expert coloring book designer and content
    - Visual elements from the theme guide the subjects
    - Attempts up to 5 times until quality passes
 
-4. **generate_and_refine_keywords** - Extracts 10 SEO keywords INCLUDING STYLE TERMS.
+4. **generate_and_refine_cover_prompts** - Creates a few MidJourney prompts for BOOK COVER BACKGROUNDS (full color, no title text).
+   - Pass the theme_context so the cover matches the inside pages
+   - Cover prompts are for background images; user adds title in another tool
+   - Attempts up to 5 times until quality passes
+
+5. **generate_and_refine_keywords** - Extracts 10 SEO keywords INCLUDING STYLE TERMS.
    - Pass the theme_context to include style and artist-related keywords
    - Keywords should capture both theme AND artistic style
    - Include artist name if famous (e.g., "Johanna Basford style")
    - Attempts up to 5 times until quality passes
 
-5. **web_search** - Search the web for additional information
+6. **web_search** - Search the web for additional information
 
-6. **search_coloring_book_trends** - Get current trending coloring book themes
+7. **search_coloring_book_trends** - Get current trending coloring book themes
 
-7. **ask_user** - Ask the user clarifying questions
+8. **ask_user** - Ask the user clarifying questions
 
 ## Your Workflow:
 
@@ -64,6 +70,7 @@ EXECUTOR_SYSTEM_PROMPT = """You are an expert coloring book designer and content
 3. **Generate Content Using Theme Context**: 
    - Call `generate_and_refine_title_description(user_input, theme_context=...)` 
    - Call `generate_and_refine_prompts(description, theme_context=...)`
+   - Call `generate_and_refine_cover_prompts(description, theme_context=...)`
    - Call `generate_and_refine_keywords(description, theme_context=...)`
    
    IMPORTANT: Pass the theme_context to each tool so they use the artistic style!
@@ -92,6 +99,7 @@ def get_executor_tools():
         expand_and_research_theme,
         generate_and_refine_title_description,
         generate_and_refine_prompts,
+        generate_and_refine_cover_prompts,
         generate_and_refine_keywords,
         web_search,
         search_coloring_book_trends,

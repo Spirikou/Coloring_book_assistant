@@ -316,12 +316,13 @@ def evaluate_title_description(title: str, description: str) -> dict:
 # MIDJOURNEY PROMPTS EVALUATOR
 # =============================================================================
 
-PROMPTS_EVALUATOR_PROMPT = """You are a strict quality evaluator for MidJourney coloring book prompts, with emphasis on creative variety and artistic coherence.
+PROMPTS_EVALUATOR_PROMPT = """You are a strict quality evaluator for MidJourney coloring book prompts, with emphasis on main-theme consistency, creative variety, and artistic coherence.
 
 ## EVALUATION CRITERIA:
+{main_theme_section}
 
-### Technical Requirements (30 points)
-1. **Count**: Must have EXACTLY 50 prompts (current: {prompt_count})
+### Technical Requirements (25 points)
+1. **Count** (5 points): Target is around 50 prompts (e.g. 45–55). Current count: {prompt_count}. Slightly under or over (e.g. 48 or 52) is acceptable. Do NOT fail or heavily penalize solely for not being exactly 50. Only deduct meaningfully if far off (e.g. under 40 or over 65).
 
 2. **Format Validation** (check EACH prompt):
    - Must be comma-separated keywords ONLY (NO sentences)
@@ -342,7 +343,7 @@ PROMPTS_EVALUATOR_PROMPT = """You are a strict quality evaluator for MidJourney 
 
 ### Creative Variety (40 points)
 5. **Subject Diversity** (10 points):
-   - Are there varied subjects? (animals, plants, patterns, objects, scenes)
+   - Are there varied subjects within the main theme? (e.g. different scenes, poses, compositions)
    - Does each prompt feel unique, not repetitive?
 
 6. **Style Diversity** (10 points):
@@ -359,7 +360,7 @@ PROMPTS_EVALUATOR_PROMPT = """You are a strict quality evaluator for MidJourney 
    - Is there a unifying theme while maintaining variety?
    - Would a colorist enjoy the journey through these pages?
 
-### MidJourney Effectiveness (30 points)
+### MidJourney Effectiveness (20 points)
 9. **Keyword Quality**:
    - Specific, visual keywords that MidJourney will interpret well
    - No vague terms like "beautiful", "nice", "good"
@@ -384,6 +385,8 @@ PROMPTS_EVALUATOR_PROMPT = """You are a strict quality evaluator for MidJourney 
         "creative_combinations": 0-10,
         "artistic_coherence": 0-10
     }},
+    "main_theme_consistency_score": 0-25,
+    "prompts_off_theme": [],
     "issues": [
         {{"issue": "description", "severity": "critical|major|minor", "suggestion": "how to fix", "affected_prompts": [1, 5, 12]}}
     ],
@@ -400,18 +403,42 @@ PROMPTS_EVALUATOR_PROMPT = """You are a strict quality evaluator for MidJourney 
 
 Return ONLY valid JSON, no other text."""
 
+PROMPTS_EVALUATOR_MAIN_THEME_BLOCK = """
+### Main theme consistency (25 points) — CRITICAL
+The main theme for this book is: **{main_theme}**
+- Every prompt must be clearly about this theme (subject). Prompts that are only about the artistic style or unrelated subjects (e.g. generic patterns with no link to the main theme) must fail this criterion.
+- Deduct heavily if a significant portion of prompts do not reflect the main theme. List prompt numbers that are off-theme in "prompts_off_theme".
+- Score "main_theme_consistency_score" 0–25; below 15 is a serious failure.
+"""
 
-def evaluate_prompts(prompts: list) -> dict:
+
+def evaluate_prompts(prompts: list, theme_context: dict = None) -> dict:
     """
     Evaluate MidJourney prompts with detailed criteria.
-    
+    When theme_context is provided with a main_theme, evaluates that every prompt
+    stays on the main theme (primary subject); count is soft (target ~50, not a critical fail).
+
     Returns:
-        dict with: passed, score, issues, diversity_assessment, summary
+        dict with: passed, score, issues, diversity_assessment, main_theme_consistency_score,
+                   prompts_off_theme, summary
     """
     llm = get_evaluator_llm()
-    
+
+    # Derive main theme for evaluation when theme_context is provided
+    main_theme = ""
+    if theme_context:
+        main_theme = theme_context.get("main_theme") or ""
+        if not main_theme and theme_context.get("original_input"):
+            main_theme = (theme_context.get("original_input") or "").split(" in ")[0].strip()
+        if not main_theme and theme_context.get("expanded_theme"):
+            main_theme = (theme_context.get("expanded_theme") or "").split(" in ")[0].strip()
+
+    main_theme_section = ""
+    if main_theme:
+        main_theme_section = PROMPTS_EVALUATOR_MAIN_THEME_BLOCK.format(main_theme=main_theme)
+
     prompt_count = len(prompts)
-    
+
     # Pre-check: validate format of each prompt
     format_issues = []
     for i, p in enumerate(prompts):
@@ -429,23 +456,24 @@ def evaluate_prompts(prompts: list) -> dict:
             if re.search(r'\b' + re.escape(color_word) + r'\b', p_lower):
                 format_issues.append(f"Prompt {i+1} contains color word: '{color_word}' (forbidden for B&W)")
                 break
-    
+
     # Prepare sample (show 10 prompts for evaluation)
     if len(prompts) > 10:
         sample_indices = [0, 1, 2, 3, 4, 24, 25, 47, 48, 49]  # First 5, middle 2, last 3
         prompts_sample = "\n".join([f"{i+1}. {prompts[i]}" for i in sample_indices if i < len(prompts)])
     else:
         prompts_sample = "\n".join([f"{i+1}. {p}" for i, p in enumerate(prompts)])
-    
+
     prompt_template = ChatPromptTemplate.from_template(PROMPTS_EVALUATOR_PROMPT)
     chain = prompt_template | llm | StrOutputParser()
-    
+
     try:
         result = chain.invoke({
+            "main_theme_section": main_theme_section,
             "prompt_count": prompt_count,
             "prompts_sample": prompts_sample
         })
-        
+
         evaluation = parse_json_response(result)
         # Inject color-word issues from pre-check so they trigger refinement
         color_issues = [f for f in format_issues if "color word" in f]
@@ -459,13 +487,20 @@ def evaluate_prompts(prompts: list) -> dict:
             ]
             evaluation["passed"] = False
             evaluation["score"] = min(evaluation.get("score", 100), 70)  # Cap score when color words found
+        # When main theme was provided, fail if main-theme consistency is very low
+        if main_theme:
+            mt_score = evaluation.get("main_theme_consistency_score")
+            if mt_score is not None and mt_score < 15:
+                evaluation["passed"] = False
+                evaluation["score"] = min(evaluation.get("score", 100), 75)
         evaluation["metrics"] = {
             "prompt_count": prompt_count,
-            "pre_check_issues": format_issues[:10]  # Include more for color issues
+            "main_theme": main_theme or None,
+            "pre_check_issues": format_issues[:10]
         }
-        
+
         return evaluation
-        
+
     except Exception as e:
         return {
             "passed": False,
@@ -474,6 +509,123 @@ def evaluate_prompts(prompts: list) -> dict:
             "diversity_assessment": {"subjects_variety": "unknown", "styles_variety": "unknown", "themes_variety": "unknown"},
             "summary": f"Evaluation failed: {e}",
             "metrics": {"prompt_count": prompt_count}
+        }
+
+
+# =============================================================================
+# COVER PROMPTS EVALUATOR
+# =============================================================================
+
+COVER_PROMPTS_EVALUATOR_PROMPT = """You are a strict quality evaluator for MidJourney prompts that generate BOOK COVER BACKGROUND images (full color, no title text). These are for coloring book covers; the user will add the title in another tool.
+
+## EVALUATION CRITERIA:
+
+{theme_section}
+
+### Technical Requirements (25 points)
+1. **Count**: Target is 3–5 cover prompts. Current count: {prompt_count}. Slightly under or over is acceptable. Do NOT fail solely for 4 or 6 prompts.
+
+2. **Format**: Each prompt must be comma-separated keywords (no full sentences). Must end with "--ar 2:3" (portrait book cover ratio).
+
+3. **Cover-specific (CRITICAL)**:
+   - Must describe a BOOK COVER BACKGROUND (e.g. contain "book cover", "cover art", "cover design", or "illustrated cover").
+   - Must specify NO TEXT in the image: e.g. "no text", "no letters", "no words", or "no typography" so the image is a background only.
+   - Must imply FULL COLOR (rich colors, illustrated). Must NOT contain "black and white" or "--no color".
+
+4. **Forbidden (inside-page wording)**: Deduct heavily if any prompt contains:
+   - "coloring book page", "clean and simple line art", "black and white", "--no color"
+   These are for inside pages only; cover prompts must be full-color background art.
+
+### Theme & Style (25 points)
+5. **Theme consistency**: Prompts should match the book theme and artistic style (see theme context above).
+6. **Visual variety**: Different compositions or angles for cover options (e.g. frame, banner, full bleed).
+
+### MidJourney Effectiveness (25 points)
+7. **Keyword quality**: Specific, visual keywords that produce strong illustrated cover art.
+8. **Cover suitability**: Resulting images would work as a background for adding title later.
+
+## COVER PROMPTS TO EVALUATE:
+{prompts_sample}
+
+## RESPONSE FORMAT (JSON only):
+{{
+    "passed": true/false (true if score >= 80),
+    "score": 0-100,
+    "issues": [
+        {{"issue": "description", "severity": "critical|major|minor", "suggestion": "how to fix", "affected_prompts": [1, 2]}}
+    ],
+    "cover_specific_score": 0-25,
+    "theme_consistency_score": 0-25,
+    "strengths": ["what's working well"],
+    "summary": "Brief assessment for cover background prompts"
+}}
+
+Return ONLY valid JSON, no other text."""
+
+
+def evaluate_cover_prompts(prompts: list, theme_context: dict = None) -> dict:
+    """
+    Evaluate MidJourney cover background prompts (full color, no text).
+    Criteria: book cover background, no inside-page wording, theme consistency, --ar 2:3.
+
+    Returns:
+        dict with: passed, score, issues, summary
+    """
+    llm = get_evaluator_llm()
+
+    main_theme = ""
+    if theme_context:
+        main_theme = theme_context.get("main_theme") or ""
+        if not main_theme and theme_context.get("original_input"):
+            main_theme = (theme_context.get("original_input") or "").split(" in ")[0].strip()
+        if not main_theme and theme_context.get("expanded_theme"):
+            main_theme = (theme_context.get("expanded_theme") or "").split(" in ")[0].strip()
+    style = (theme_context or {}).get("artistic_style", "")
+    theme_section = f"The main theme for this book is: **{main_theme}**. Style: **{style}**. Cover prompts should match this theme and style."
+
+    prompt_count = len(prompts)
+
+    # Pre-check: forbidden inside-page phrasing; required --ar 2:3; prefer "no text"
+    format_issues = []
+    for i, p in enumerate(prompts):
+        p_lower = p.lower()
+        if "--ar 2:3" not in p_lower and "--ar 2:3" not in p.replace(" ", ""):
+            format_issues.append(f"Prompt {i+1} should end with --ar 2:3 for book cover")
+        if "coloring book page" in p_lower or "clean and simple line art" in p_lower or "black and white" in p_lower or "--no color" in p_lower:
+            format_issues.append(f"Prompt {i+1} contains inside-page wording (cover must be full color, no B&W)")
+        if "book cover" not in p_lower and "cover art" not in p_lower and "cover design" not in p_lower and "cover background" not in p_lower:
+            format_issues.append(f"Prompt {i+1} should mention book cover/cover art/cover design")
+        if "no text" not in p_lower and "no letters" not in p_lower and "no words" not in p_lower and "no typography" not in p_lower:
+            format_issues.append(f"Prompt {i+1} should include 'no text' or 'no words' so the image is title-free")
+
+    prompts_sample = "\n".join([f"{i+1}. {p}" for i, p in enumerate(prompts)])
+
+    prompt_template = ChatPromptTemplate.from_template(COVER_PROMPTS_EVALUATOR_PROMPT)
+    chain = prompt_template | llm | StrOutputParser()
+
+    try:
+        result = chain.invoke({
+            "theme_section": theme_section,
+            "prompt_count": prompt_count,
+            "prompts_sample": prompts_sample,
+        })
+        evaluation = parse_json_response(result)
+        if format_issues:
+            existing = evaluation.get("issues", [])
+            evaluation["issues"] = existing + [
+                {"issue": f"Pre-check: {'; '.join(format_issues[:5])}" + ("; ..." if len(format_issues) > 5 else ""), "severity": "major", "suggestion": "Fix format and cover-specific requirements"}
+            ]
+            evaluation["passed"] = False
+            evaluation["score"] = min(evaluation.get("score", 100), 75)
+        evaluation["metrics"] = {"prompt_count": prompt_count, "pre_check_issues": format_issues[:10]}
+        return evaluation
+    except Exception as e:
+        return {
+            "passed": False,
+            "score": 0,
+            "issues": [{"issue": f"Evaluation error: {e}", "severity": "critical", "suggestion": "Retry"}],
+            "summary": f"Evaluation failed: {e}",
+            "metrics": {"prompt_count": prompt_count},
         }
 
 
@@ -863,6 +1015,18 @@ def format_feedback(evaluation: dict, component: str) -> str:
             
     elif component == "MidJourney Prompts":
         issues = evaluation.get("issues", [])
+        
+        # Main theme consistency (critical when main theme was provided)
+        mt_score = evaluation.get("main_theme_consistency_score")
+        prompts_off = evaluation.get("prompts_off_theme") or []
+        if mt_score is not None and (mt_score < 15 or prompts_off):
+            feedback_parts.append("🎯 Main theme consistency (CRITICAL):")
+            feedback_parts.append(f"  • Score: {mt_score}/25 — prompts must center on the main theme.")
+            if prompts_off:
+                feedback_parts.append(f"  • Prompts off-theme (revise or replace): {prompts_off[:15]}")
+                if len(prompts_off) > 15:
+                    feedback_parts.append(f"    ... and {len(prompts_off) - 15} more.")
+            feedback_parts.append("")
         
         # Add creativity scores
         creativity = evaluation.get("creativity_scores", {})

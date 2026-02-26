@@ -13,10 +13,12 @@ from features.design_generation.tools.user_tools import display_results, UserQue
 from features.design_generation.tools.content_tools import (
     generate_and_refine_title_description,
     generate_and_refine_prompts,
+    generate_and_refine_cover_prompts,
     generate_and_refine_keywords,
     regenerate_art_style,
     regenerate_title_description,
     regenerate_prompts,
+    regenerate_cover_prompts,
     regenerate_keywords,
 )
 from core.state import ColoringBookState
@@ -37,6 +39,7 @@ def _build_theme_context_from_concept(concept: dict) -> dict:
     return {
         "original_input": f"{theme} in {style} style",
         "expanded_theme": expanded,
+        "main_theme": theme or expanded.split(" in ")[0].strip() if expanded else "",
         "artistic_style": style,
         "style_description": concept.get("style_description", ""),
         "signature_artist": concept.get("signature_artist", "style-inspired artist"),
@@ -113,6 +116,17 @@ def executor_node(state: ColoringBookState) -> ColoringBookState:
             new_state["prompts_passed"] = prompts_result.get("passed", False)
         new_state["prompts_status"] = "completed"
 
+        # Generate cover prompts
+        generation_log.append({"step": "cover_prompts", "message": "Generating cover prompts..."})
+        print("   📖 Generating cover prompts...")
+        cover_result = generate_and_refine_cover_prompts.invoke({"description": new_state.get("description", ""), "theme_context": theme_context})
+        if isinstance(cover_result, dict) and "final_content" in cover_result:
+            new_state["cover_prompts"] = cover_result["final_content"]
+            new_state["cover_prompts_attempts"] = cover_result.get("attempts", [])
+            new_state["cover_prompts_score"] = cover_result.get("final_score", 0)
+            new_state["cover_prompts_passed"] = cover_result.get("passed", False)
+        new_state["cover_prompts_status"] = "completed"
+
         # Generate keywords
         generation_log.append({"step": "keywords", "message": "Generating SEO keywords..."})
         print("   🔍 Generating SEO keywords...")
@@ -140,9 +154,11 @@ def executor_node(state: ColoringBookState) -> ColoringBookState:
         new_state["title_status"] = "pending"
     if "prompts_status" not in new_state:
         new_state["prompts_status"] = "pending"
+    if "cover_prompts_status" not in new_state:
+        new_state["cover_prompts_status"] = "pending"
     if "keywords_status" not in new_state:
         new_state["keywords_status"] = "pending"
-    
+
     # Check if we have a pending answer from the user (resuming after question)
     if state.get("user_answer"):
         # Resume with the user's answer - add it to existing messages or create new context
@@ -247,7 +263,15 @@ def executor_node(state: ColoringBookState) -> ColoringBookState:
                         new_state["prompts_passed"] = content.get("passed", False)
                         # Update status
                         new_state["prompts_status"] = "completed"
-                        
+
+                elif tool_name == "generate_and_refine_cover_prompts":
+                    if isinstance(content, dict):
+                        new_state["cover_prompts"] = content.get("final_content", [])
+                        new_state["cover_prompts_attempts"] = content.get("attempts", [])
+                        new_state["cover_prompts_score"] = content.get("final_score", 0)
+                        new_state["cover_prompts_passed"] = content.get("passed", False)
+                        new_state["cover_prompts_status"] = "completed"
+
                 elif tool_name == "generate_and_refine_keywords":
                     if isinstance(content, dict):
                         new_state["seo_keywords"] = content.get("final_content", [])
@@ -371,17 +395,21 @@ def run_coloring_book_agent(user_request: str) -> ColoringBookState:
         "title": "",
         "description": "",
         "midjourney_prompts": [],
+        "cover_prompts": [],
         "seo_keywords": [],
         # Attempt history
         "title_attempts": [],
         "prompts_attempts": [],
+        "cover_prompts_attempts": [],
         "keywords_attempts": [],
         # Quality scores
         "title_score": 0,
         "prompts_score": 0,
+        "cover_prompts_score": 0,
         "keywords_score": 0,
         "title_passed": False,
         "prompts_passed": False,
+        "cover_prompts_passed": False,
         "keywords_passed": False,
         # Workflow state
         "messages": [],
@@ -400,13 +428,14 @@ def run_coloring_book_agent(user_request: str) -> ColoringBookState:
         "theme_status": "pending",
         "title_status": "pending",
         "prompts_status": "pending",
+        "cover_prompts_status": "pending",
         "keywords_status": "pending"
     }
-    
+
     # Create and run the graph
     app = create_coloring_book_graph()
     final_state = app.invoke(initial_state)
-    
+
     print("\n" + "=" * 60)
     print("🎉 Workflow complete!")
     print("=" * 60)
@@ -452,15 +481,19 @@ def run_design_for_concept(concept: dict) -> ColoringBookState:
         "title": "",
         "description": "",
         "midjourney_prompts": [],
+        "cover_prompts": [],
         "seo_keywords": [],
         "title_attempts": [],
         "prompts_attempts": [],
+        "cover_prompts_attempts": [],
         "keywords_attempts": [],
         "title_score": 0,
         "prompts_score": 0,
+        "cover_prompts_score": 0,
         "keywords_score": 0,
         "title_passed": False,
         "prompts_passed": False,
+        "cover_prompts_passed": False,
         "keywords_passed": False,
         "messages": [],
         "status": "generating",
@@ -474,6 +507,7 @@ def run_design_for_concept(concept: dict) -> ColoringBookState:
         "theme_status": "pending",
         "title_status": "pending",
         "prompts_status": "pending",
+        "cover_prompts_status": "pending",
         "keywords_status": "pending",
     }
 
@@ -488,7 +522,7 @@ def run_design_for_concept(concept: dict) -> ColoringBookState:
     return final_state
 
 
-DESIGN_STEPS = ["theme_context", "title", "prompts", "keywords"]
+DESIGN_STEPS = ["theme_context", "title", "prompts", "cover_prompts", "keywords"]
 
 
 def run_design_step_for_concept(
@@ -502,7 +536,7 @@ def run_design_step_for_concept(
 
     Args:
         concept: Dict with theme, style (or theme_concept, art_style).
-        step_name: One of "theme_context", "title", "prompts", "keywords".
+        step_name: One of "theme_context", "title", "prompts", "cover_prompts", "keywords".
         previous_state: State from previous step (required for title, prompts, keywords).
 
     Returns:
@@ -533,15 +567,19 @@ def run_design_step_for_concept(
             "title": "",
             "description": "",
             "midjourney_prompts": [],
+            "cover_prompts": [],
             "seo_keywords": [],
             "title_attempts": [],
             "prompts_attempts": [],
+            "cover_prompts_attempts": [],
             "keywords_attempts": [],
             "title_score": 0,
             "prompts_score": 0,
+            "cover_prompts_score": 0,
             "keywords_score": 0,
             "title_passed": False,
             "prompts_passed": False,
+            "cover_prompts_passed": False,
             "keywords_passed": False,
             "messages": [],
             "status": "generating",
@@ -555,6 +593,7 @@ def run_design_step_for_concept(
             "theme_status": "pending",
             "title_status": "pending",
             "prompts_status": "pending",
+            "cover_prompts_status": "pending",
             "keywords_status": "pending",
         }
         generation_log = []
@@ -599,6 +638,18 @@ def run_design_step_for_concept(
             new_state["prompts_score"] = prompts_result.get("final_score", 0)
             new_state["prompts_passed"] = prompts_result.get("passed", False)
         new_state["prompts_status"] = "completed"
+
+    elif step_name == "cover_prompts":
+        generation_log.append({"step": "cover_prompts", "message": "Generating cover prompts..."})
+        cover_result = generate_and_refine_cover_prompts.invoke(
+            {"description": new_state.get("description", ""), "theme_context": theme_context}
+        )
+        if isinstance(cover_result, dict) and "final_content" in cover_result:
+            new_state["cover_prompts"] = cover_result["final_content"]
+            new_state["cover_prompts_attempts"] = cover_result.get("attempts", [])
+            new_state["cover_prompts_score"] = cover_result.get("final_score", 0)
+            new_state["cover_prompts_passed"] = cover_result.get("passed", False)
+        new_state["cover_prompts_status"] = "completed"
 
     elif step_name == "keywords":
         generation_log.append({"step": "keywords", "message": "Generating SEO keywords..."})
@@ -655,7 +706,7 @@ def rerun_design_with_modifications(
         print(f"   🎨 Updating art style to: {art_style_hint}")
         theme_context = regenerate_art_style(theme_context, art_style_hint)
         new_state["expanded_theme"] = theme_context
-        regenerate_list = ["title", "prompts", "keywords"]  # Cascade to all
+        regenerate_list = ["title", "prompts", "cover_prompts", "keywords"]  # Cascade to all
 
     if custom_instructions:
         print(f"   📝 Custom instructions: {custom_instructions[:50]}...")
@@ -691,6 +742,15 @@ def rerun_design_with_modifications(
             new_state["prompts_attempts"] = result.get("attempts", [])
             new_state["prompts_score"] = result.get("final_score", 0)
             new_state["prompts_passed"] = result.get("passed", False)
+
+    if "cover_prompts" in regenerate_list:
+        print("   📖 Regenerating cover prompts...")
+        result = regenerate_cover_prompts(theme_context, description, custom_instructions)
+        if isinstance(result, dict) and "final_content" in result:
+            new_state["cover_prompts"] = result["final_content"]
+            new_state["cover_prompts_attempts"] = result.get("attempts", [])
+            new_state["cover_prompts_score"] = result.get("final_score", 0)
+            new_state["cover_prompts_passed"] = result.get("passed", False)
 
     if "keywords" in regenerate_list:
         print("   🔍 Regenerating SEO keywords...")

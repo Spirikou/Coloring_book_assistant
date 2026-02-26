@@ -31,6 +31,7 @@ STEP_DISPLAY_NAMES = [
     "Building theme context from concept",
     "Generating title and description",
     "Generating MidJourney prompts",
+    "Generating cover prompts",
     "Generating SEO keywords",
 ]
 
@@ -90,6 +91,15 @@ def render_attempt(attempt: dict, attempt_num: int, component_type: str):
                         st.code(p, language="text")
                     if len(prompts) > 3:
                         st.caption(f"... and {len(prompts) - 3} more prompts")
+
+            elif component_type == "cover_prompts":
+                prompts = content if isinstance(content, list) else []
+                st.markdown(f"**Cover Prompts Generated:** {len(prompts)}")
+                if prompts:
+                    for i, p in enumerate(prompts[:3], 1):
+                        st.code(p, language="text")
+                    if len(prompts) > 3:
+                        st.caption(f"... and {len(prompts) - 3} more")
 
             elif component_type == "keywords":
                 keywords = content if isinstance(content, list) else []
@@ -208,6 +218,7 @@ def render_progress_overview(state: dict):
     theme_status = state.get("theme_status", "pending")
     title_status = state.get("title_status", "pending")
     prompts_status = state.get("prompts_status", "pending")
+    cover_prompts_status = state.get("cover_prompts_status", "pending")
     keywords_status = state.get("keywords_status", "pending")
 
     def get_status_display(status: str, score: int = 0, passed: bool = False):
@@ -223,7 +234,7 @@ def render_progress_overview(state: dict):
         else:
             return "○", "Pending", "off"
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
         theme_icon, theme_label, theme_color = get_status_display(
@@ -271,6 +282,21 @@ def render_progress_overview(state: dict):
             st.progress(0.5)
 
     with col4:
+        cover_icon, cover_label, cover_color = get_status_display(
+            cover_prompts_status,
+            state.get("cover_prompts_score", 0),
+            state.get("cover_prompts_passed", False)
+        )
+        st.metric(
+            "Cover Prompts",
+            f"{state.get('cover_prompts_score', 0)}/100",
+            delta=cover_label,
+            delta_color=cover_color
+        )
+        if cover_prompts_status == "in_progress":
+            st.progress(0.5)
+
+    with col5:
         keywords_icon, keywords_label, keywords_color = get_status_display(
             keywords_status,
             state.get("keywords_score", 0),
@@ -311,7 +337,7 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
         )
         
         # All buttons on the same line
-        col1, col2, col3, col4, col5 = st.columns(5)
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
         with col1:
             if st.button("Title", key=f"{key_prefix}rerun_title_btn"):
                 with st.spinner("Regenerating title & description..."):
@@ -339,6 +365,19 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
                     except Exception as e:
                         st.error(str(e))
         with col3:
+            if st.button("Cover", key=f"{key_prefix}rerun_cover_btn"):
+                with st.spinner("Regenerating cover prompts..."):
+                    try:
+                        mods = {"regenerate": ["cover_prompts"]}
+                        if custom_instructions.strip():
+                            mods["custom_instructions"] = custom_instructions.strip()
+                        updated = rerun_design_with_modifications(state, mods)
+                        _save_or_update_design_package(updated)
+                        st.session_state.workflow_state = updated
+                        st.rerun()
+                    except Exception as e:
+                        st.error(str(e))
+        with col4:
             if st.button("Keywords", key=f"{key_prefix}rerun_keywords_btn"):
                 with st.spinner("Regenerating keywords..."):
                     try:
@@ -351,11 +390,11 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
                         st.rerun()
                     except Exception as e:
                         st.error(str(e))
-        with col4:
+        with col5:
             if st.button("All", key=f"{key_prefix}rerun_all_btn"):
                 with st.spinner("Regenerating all..."):
                     try:
-                        mods = {"regenerate": ["title", "prompts", "keywords"]}
+                        mods = {"regenerate": ["title", "prompts", "cover_prompts", "keywords"]}
                         if custom_instructions.strip():
                             mods["custom_instructions"] = custom_instructions.strip()
                         updated = rerun_design_with_modifications(state, mods)
@@ -364,7 +403,7 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
                         st.rerun()
                     except Exception as e:
                         st.error(str(e))
-        with col5:
+        with col6:
             if st.button("Full Rerun", key=f"{key_prefix}rerun_full_btn"):
                 with st.spinner("Full rerun from concept..."):
                     try:
@@ -391,6 +430,10 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
             prompts_list = state.get("midjourney_prompts", [])
             edited_prompts = st.text_area("Prompts (one per line)", value="\n".join(prompts_list) if isinstance(prompts_list, list) else "", key="edit_prompts", height=200)
             state["midjourney_prompts"] = [p.strip() for p in edited_prompts.split("\n") if p.strip()]
+        with st.expander("Cover Prompts (advanced)", expanded=False):
+            cover_list = state.get("cover_prompts", [])
+            edited_cover = st.text_area("Cover prompts (one per line)", value="\n".join(cover_list) if isinstance(cover_list, list) else "", key="edit_cover_prompts", height=120)
+            state["cover_prompts"] = [p.strip() for p in edited_cover.split("\n") if p.strip()]
         state["title"] = edited_title
         state["description"] = edited_desc
         state["seo_keywords"] = [k.strip() for k in edited_keywords.split("\n") if k.strip()]
@@ -481,6 +524,14 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
             st.markdown(f"**Prompt {i}**")
             st.code(p, language="text")
 
+        st.markdown("---")
+        st.markdown(f"**{len(state.get('cover_prompts', []))} Cover Prompts**")
+        st.caption("Background images for the book cover (full color, no text). Use Edit and Save above to modify.")
+        cover_prompts = state.get("cover_prompts", [])
+        for i, p in enumerate(cover_prompts, 1):
+            st.markdown(f"**Cover {i}**")
+            st.code(p, language="text")
+
     keywords_tab = tab3 if expanded_theme else tab2
     with keywords_tab:
         keywords = state.get("seo_keywords", [])
@@ -494,17 +545,20 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
             "title": state.get("title", ""),
             "description": state.get("description", ""),
             "midjourney_prompts": state.get("midjourney_prompts", []),
+            "cover_prompts": state.get("cover_prompts", []),
             "seo_keywords": state.get("seo_keywords", []),
             "quality_scores": {
                 "theme": state.get("theme_score", 0),
                 "title_description": state.get("title_score", 0),
                 "prompts": state.get("prompts_score", 0),
+                "cover_prompts": state.get("cover_prompts_score", 0),
                 "keywords": state.get("keywords_score", 0)
             },
             "attempts_needed": {
                 "theme": len(state.get("theme_attempts", [])),
                 "title_description": len(state.get("title_attempts", [])),
                 "prompts": len(state.get("prompts_attempts", [])),
+                "cover_prompts": len(state.get("cover_prompts_attempts", [])),
                 "keywords": len(state.get("keywords_attempts", []))
             }
         }
@@ -549,6 +603,14 @@ def render_attempt_history_collapsed(state: dict):
             "prompts",
             state.get("prompts_score", 0),
             state.get("prompts_passed", False)
+        )
+
+        render_component_section(
+            "Cover Prompts",
+            state.get("cover_prompts_attempts", []),
+            "cover_prompts",
+            state.get("cover_prompts_score", 0),
+            state.get("cover_prompts_passed", False)
         )
 
         render_component_section(

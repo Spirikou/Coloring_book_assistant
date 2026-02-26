@@ -434,10 +434,12 @@ def save_design_package(
     state: dict,
     source_images_folder: str | Path,
     package_path: Optional[str | Path] = None,
+    cover_source_folder: Optional[str | Path] = None,
 ) -> str:
     """
     Create or update a design package: copy images + write design.json and book_config.json.
     If package_path provided, update existing package. Otherwise create new folder.
+    If cover_source_folder is provided and exists, copies its images into pkg/cover.
     Returns path to the package folder.
     """
     import shutil
@@ -448,7 +450,7 @@ def save_design_package(
         package_path = create_design_package(state)
     pkg = Path(package_path)
     pkg.mkdir(parents=True, exist_ok=True)
-    # Copy images
+    # Copy inside images
     for ext in IMAGE_EXTENSIONS:
         for f in source.glob(f"*{ext}"):
             if f.is_file():
@@ -457,6 +459,19 @@ def save_design_package(
     eval_file = source / IMAGE_EVALUATIONS_FILE
     if eval_file.exists() and eval_file.is_file():
         shutil.copy2(eval_file, pkg / IMAGE_EVALUATIONS_FILE)
+    # Copy cover images to pkg/cover if provided
+    if cover_source_folder:
+        cover_src = Path(cover_source_folder)
+        if cover_src.exists() and cover_src.is_dir():
+            pkg_cover = pkg / "cover"
+            pkg_cover.mkdir(parents=True, exist_ok=True)
+            for ext in IMAGE_EXTENSIONS:
+                for f in cover_src.glob(f"*{ext}"):
+                    if f.is_file():
+                        shutil.copy2(f, pkg_cover / f.name)
+            cover_eval = cover_src / IMAGE_EVALUATIONS_FILE
+            if cover_eval.exists() and cover_eval.is_file():
+                shutil.copy2(cover_eval, pkg_cover / IMAGE_EVALUATIONS_FILE)
     # Update design.json
     state_copy = dict(state)
     state_copy["images_folder_path"] = str(pkg.resolve())

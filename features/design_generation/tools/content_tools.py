@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from features.design_generation.agents.evaluator import (
     evaluate_title_description,
     evaluate_prompts,
+    evaluate_cover_prompts,
     evaluate_keywords,
     evaluate_theme_creativity,
     format_feedback,
@@ -21,7 +22,11 @@ from features.design_generation.agents.evaluator import (
     PASS_THRESHOLD
 )
 from features.design_generation.tools.search_tools import web_search
-from features.design_generation.constants import MIN_CONCEPT_VARIATIONS, MAX_CONCEPT_VARIATIONS
+from features.design_generation.constants import (
+    MIN_CONCEPT_VARIATIONS,
+    MAX_CONCEPT_VARIATIONS,
+    COVER_PROMPTS_COUNT,
+)
 
 load_dotenv()
 
@@ -277,7 +282,10 @@ def expand_and_research_theme(user_input: str) -> dict:
         # Generate expanded theme (with feedback from best attempt if available)
         theme_data = _expand_theme_internal(user_input, style_research, feedback)
         theme_data["style_research"] = style_research
-        
+        # Ensure main_theme (primary subject) is set for prompt generation and evaluation
+        if not theme_data.get("main_theme"):
+            theme_data["main_theme"] = (theme_data.get("original_input") or "").split(" in ")[0].strip() or (theme_data.get("expanded_theme") or "").split(" in ")[0].strip()
+
         # Evaluate creativity
         evaluation = evaluate_theme_creativity(theme_data)
         
@@ -467,7 +475,25 @@ IMPORTANT - Previous attempt had issues. Fix these problems:
 Apply these instructions when creating the prompts!
 """
     
-    # Build artistic style guidance
+    # Derive main theme (primary subject) for anchor—e.g. "Highland cows", "Easter", "dogs"
+    main_theme = ""
+    if theme_context:
+        main_theme = theme_context.get("main_theme") or ""
+        if not main_theme and theme_context.get("original_input"):
+            main_theme = (theme_context["original_input"] or "").split(" in ")[0].strip()
+        if not main_theme and theme_context.get("expanded_theme"):
+            main_theme = (theme_context["expanded_theme"] or "").split(" in ")[0].strip()
+
+    main_theme_section = ""
+    if main_theme:
+        main_theme_section = f"""
+## MAIN THEME (PRIMARY — MUST APPLY TO EVERY PROMPT):
+**{main_theme}**
+
+Every prompt MUST be clearly about this subject. The artistic style is how it is drawn, not what it is. Do NOT create prompts that are only about the style (e.g. generic Celtic patterns or mandalas) without the main theme—e.g. every prompt should feature {main_theme} or direct variations (scenes, details, compositions involving {main_theme}).
+"""
+
+    # Build artistic style guidance (secondary: how it looks)
     style_section = ""
     if theme_context:
         artistic_style = theme_context.get('artistic_style', '')
@@ -477,18 +503,121 @@ Apply these instructions when creating the prompts!
         page_ideas = theme_context.get('page_ideas', [])
         
         style_section = f"""
-## ARTISTIC STYLE DIRECTION:
+## ARTISTIC STYLE DIRECTION (how to draw — secondary to main theme):
 - **Style**: {artistic_style}
 - **Artist Inspiration**: {signature_artist}
 - **Style Keywords to Include**: {', '.join(style_keywords)}
 - **Visual Elements**: {', '.join(visual_elements)}
 - **Page Ideas**: {', '.join(page_ideas)}
 
-EVERY prompt should reflect this artistic style! Include style-specific keywords.
+EVERY prompt should reflect this artistic style in the keywords, but the SUBJECT must always tie back to the MAIN THEME above.
 """
     
     prompt = ChatPromptTemplate.from_template("""
 You are an expert at creating MidJourney prompts for coloring book designs in a SPECIFIC artistic style.
+
+## BOOK DESCRIPTION:
+{description}
+{main_theme_section}
+{style_section}
+{custom_section}
+{feedback_section}
+
+## PROMPT FORMAT:
+Create approximately 50 prompts (target 48–55). Each prompt MUST follow this EXACT format:
+
+"[subject], [style keywords], [details], [art style], coloring book page, clean and simple line art, black and white --no color --ar 1:1"
+
+## CRITICAL RULES:
+1. Approximately 50 prompts (e.g. 48–55); quality and theme consistency matter more than exact count.
+2. Keywords ONLY - NO sentences or phrases
+3. Each keyword is 1-3 words max
+4. MUST include "coloring book page" in every prompt
+5. MUST include "clean and simple line art" in every prompt
+6. MUST include "black and white" in every prompt
+7. MUST end with "--no color --ar 1:1"
+8. EVERY prompt must center on the MAIN THEME (primary subject) when specified above; do not drift into generic style-only prompts.
+9. EVERY prompt must include the ARTISTIC STYLE in the keywords (how it's drawn).
+10. NEVER include color-related keywords - these are black and white line art pages. Banned: red, blue, green, yellow, orange, purple, pink, vibrant, colorful, colourful, pastel, hue, multicolored, rainbow, golden, silver, crimson, azure, etc.
+
+## GOOD (main theme + style): Highland cow, Celtic knot border, floral wreath, coloring book page, clean and simple line art, black and white --no color --ar 1:1
+## BAD (style only, no main theme): Celtic knot, mandala, decorative border, coloring book page... — missing the main subject
+
+## BAD PROMPTS (DO NOT DO THIS):
+"A beautiful owl sitting majestically in an enchanted forest" - TOO WORDY, uses banned words, no style keywords
+"owl, vibrant feathers, red flowers, blue sky, coloring book page..." - CONTAINS COLOR WORDS (vibrant, red, blue) - forbidden for black and white line art
+
+Return a JSON array with approximately 50 prompts. No markdown, just the array.""")
+
+    chain = prompt | llm | StrOutputParser()
+    result = chain.invoke({
+        "description": description,
+        "main_theme_section": main_theme_section,
+        "style_section": style_section,
+        "custom_section": custom_section,
+        "feedback_section": feedback_section
+    })
+    
+    try:
+        result = result.strip()
+        if result.startswith("```json"):
+            result = result[7:]
+        if result.startswith("```"):
+            result = result[3:]
+        if result.endswith("```"):
+            result = result[:-3]
+        return json.loads(result.strip())
+    except json.JSONDecodeError:
+        return []
+
+
+def _generate_cover_prompts_internal(
+    description: str,
+    feedback: str = "",
+    theme_context: dict = None,
+    custom_instructions: str = "",
+) -> list:
+    """Internal function to generate MidJourney prompts for book cover backgrounds (full color, no text)."""
+    llm = get_llm()
+
+    feedback_section = ""
+    if feedback:
+        feedback_section = f"""
+
+IMPORTANT - Previous attempt had issues. Fix these problems:
+{feedback}
+"""
+
+    custom_section = ""
+    if custom_instructions:
+        custom_section = f"""
+## USER'S SPECIAL INSTRUCTIONS (MUST FOLLOW):
+{custom_instructions}
+
+Apply these when creating the cover prompts!
+"""
+
+    main_theme = ""
+    style_section = ""
+    if theme_context:
+        main_theme = theme_context.get("main_theme") or ""
+        if not main_theme and theme_context.get("original_input"):
+            main_theme = (theme_context.get("original_input") or "").split(" in ")[0].strip()
+        if not main_theme and theme_context.get("expanded_theme"):
+            main_theme = (theme_context.get("expanded_theme") or "").split(" in ")[0].strip()
+        artistic_style = theme_context.get("artistic_style", "")
+        style_keywords = theme_context.get("style_keywords", [])
+        visual_elements = theme_context.get("visual_elements", [])
+        style_section = f"""
+## THEME & STYLE (match the inside pages):
+- **Main theme**: {main_theme}
+- **Artistic style**: {artistic_style}
+- **Style keywords**: {', '.join(style_keywords)}
+- **Visual elements**: {', '.join(visual_elements)}
+"""
+
+    prompt = ChatPromptTemplate.from_template("""
+You are an expert at creating MidJourney prompts for BOOK COVER BACKGROUND images. These are full-color illustrated backgrounds; the user will add the book title in another tool. No text or title in the image.
 
 ## BOOK DESCRIPTION:
 {description}
@@ -497,40 +626,34 @@ You are an expert at creating MidJourney prompts for coloring book designs in a 
 {feedback_section}
 
 ## PROMPT FORMAT:
-Create EXACTLY 50 prompts. Each prompt MUST follow this EXACT format:
+Create exactly {cover_count} prompts. Each prompt MUST follow this format:
 
-"[subject], [style keywords], [details], [art style], coloring book page, clean and simple line art, black and white --no color --ar 1:1"
+"[theme/subject], [style keywords], book cover, [details], rich colors, illustrated, no text, no letters, no words --ar 2:3"
 
 ## CRITICAL RULES:
-1. EXACTLY 50 prompts (not 49, not 51)
-2. Keywords ONLY - NO sentences or phrases
-3. Each keyword is 1-3 words max
-4. MUST include "coloring book page" in every prompt
-5. MUST include "clean and simple line art" in every prompt
-6. MUST include "black and white" in every prompt
-7. MUST end with "--no color --ar 1:1"
-8. EVERY prompt must include the ARTISTIC STYLE specified above in the keywords
-9. NEVER include color-related keywords - these are black and white line art pages. Banned: red, blue, green, yellow, orange, purple, pink, vibrant, colorful, colourful, pastel, hue, multicolored, rainbow, golden, silver, crimson, azure, etc.
+1. EXACTLY {cover_count} prompts.
+2. Keywords ONLY - NO sentences.
+3. MUST include "book cover" or "cover art" or "cover design" in every prompt.
+4. MUST include "no text" or "no words" or "no letters" so the image has no title/text.
+5. MUST end with "--ar 2:3" (portrait book cover ratio).
+6. MUST imply full color (e.g. "rich colors", "illustrated", "full color"). Do NOT use "black and white" or "--no color".
+7. Do NOT include: "coloring book page", "clean and simple line art", "black and white" — those are for inside pages only.
+8. Match the book theme and artistic style above so the cover fits the inside pages.
 
-## STYLE-SPECIFIC EXAMPLES:
-- Mandala style: "owl, mandala pattern, zentangle, intricate circles, coloring book page, clean and simple line art, black and white --no color --ar 1:1"
-- Art Nouveau: "peacock, art nouveau, flowing lines, decorative border, coloring book page, clean and simple line art, black and white --no color --ar 1:1"
-- Kerby Rosanes style: "elephant, morphing into flowers, hyperdetailed, hidden elements, coloring book page, clean and simple line art, black and white --no color --ar 1:1"
+## GOOD: forest animals, art nouveau border, book cover, decorative frame, rich colors, illustrated, no text --ar 2:3
+## BAD: owl, coloring book page, clean and simple line art, black and white --no color --ar 1:1 (that is for inside pages)
 
-## BAD PROMPTS (DO NOT DO THIS):
-"A beautiful owl sitting majestically in an enchanted forest" - TOO WORDY, uses banned words, no style keywords
-"owl, vibrant feathers, red flowers, blue sky, coloring book page..." - CONTAINS COLOR WORDS (vibrant, red, blue) - forbidden for black and white line art
-
-Return a JSON array with exactly 50 prompts. No markdown, just the array.""")
+Return a JSON array with exactly {cover_count} prompts. No markdown, just the array.""")
 
     chain = prompt | llm | StrOutputParser()
     result = chain.invoke({
         "description": description,
         "style_section": style_section,
         "custom_section": custom_section,
-        "feedback_section": feedback_section
+        "feedback_section": feedback_section,
+        "cover_count": COVER_PROMPTS_COUNT,
     })
-    
+
     try:
         result = result.strip()
         if result.startswith("```json"):
@@ -758,8 +881,8 @@ def generate_and_refine_prompts(description: str, theme_context: dict = None, cu
         # Generate (with feedback from best attempt if available)
         prompts = _generate_prompts_internal(description, feedback, theme_context, custom_instructions)
         
-        # Evaluate
-        evaluation = evaluate_prompts(prompts)
+        # Evaluate (pass theme_context so evaluator can check main-theme consistency)
+        evaluation = evaluate_prompts(prompts, theme_context=theme_context)
         
         score = evaluation.get("score", 0)
         
@@ -810,6 +933,74 @@ def generate_and_refine_prompts(description: str, theme_context: dict = None, cu
         "passed": False,
         "final_score": best_score,
         "attempts_needed": MAX_ATTEMPTS
+    }
+
+
+@tool
+def generate_and_refine_cover_prompts(description: str, theme_context: dict = None, custom_instructions: str = "") -> dict:
+    """
+    Generate and refine MidJourney prompts for book cover backgrounds (full color, no title text).
+    Uses theme context so cover matches the inside pages. Attempts up to 5 times until quality passes.
+
+    Args:
+        description: The coloring book description to base cover prompts on.
+        theme_context: Optional dict with artistic_style, style_keywords, visual_elements, etc.
+        custom_instructions: Optional free text (e.g. "space for title at top").
+
+    Returns:
+        Dictionary with final_content (list of cover prompts) and attempts history.
+    """
+    attempts = []
+    feedback = ""
+    best_attempt = None
+    best_score = -1
+
+    for attempt_num in range(1, MAX_ATTEMPTS + 1):
+        print(f"   📖 Cover Prompts - Attempt {attempt_num}/{MAX_ATTEMPTS}")
+
+        prompts = _generate_cover_prompts_internal(description, feedback, theme_context, custom_instructions)
+        evaluation = evaluate_cover_prompts(prompts, theme_context=theme_context)
+
+        score = evaluation.get("score", 0)
+        attempt_record = {
+            "attempt": attempt_num,
+            "content": prompts,
+            "evaluation": evaluation,
+            "feedback": feedback,
+        }
+        attempts.append(attempt_record)
+
+        if score > best_score:
+            best_score = score
+            best_attempt = attempt_record
+            print(f"      Score: {score}/100, Count: {len(prompts)} ⭐ NEW BEST")
+        else:
+            print(f"      Score: {score}/100, Count: {len(prompts)} (best: {best_score})")
+
+        passed = evaluation.get("passed", False) or score >= PASS_THRESHOLD
+        if passed:
+            print(f"      ✅ PASSED")
+            return {
+                "final_content": prompts,
+                "attempts": attempts,
+                "passed": True,
+                "final_score": score,
+                "attempts_needed": attempt_num,
+            }
+
+        feedback = format_feedback(best_attempt["evaluation"], "Cover Prompts")
+        if best_attempt["content"]:
+            feedback += f"\n\n📋 BEST COVER PROMPTS SO FAR (score {best_score}/100):\n"
+            for i, p in enumerate(best_attempt["content"][:5], 1):
+                feedback += f"{i}. {p}\n"
+
+    print(f"      ❌ Max attempts reached. Using best attempt (score: {best_score})")
+    return {
+        "final_content": best_attempt["content"],
+        "attempts": attempts,
+        "passed": False,
+        "final_score": best_score,
+        "attempts_needed": MAX_ATTEMPTS,
     }
 
 
@@ -992,6 +1183,17 @@ def regenerate_prompts(theme_context: dict, description: str, custom_instruction
         "description": description, 
         "theme_context": theme_context,
         "custom_instructions": custom_instructions
+    })
+
+
+def regenerate_cover_prompts(theme_context: dict, description: str, custom_instructions: str = "") -> dict:
+    """
+    Regenerate cover prompts. Returns dict with final_content and attempts.
+    """
+    return generate_and_refine_cover_prompts.invoke({
+        "description": description,
+        "theme_context": theme_context,
+        "custom_instructions": custom_instructions,
     })
 
 

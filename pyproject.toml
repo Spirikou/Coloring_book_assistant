@@ -15,6 +15,7 @@ dependencies = [
     "langgraph>=0.6.6",
     "python-dotenv>=1.1.1",
     "streamlit>=1.49.1",
+    "streamlit-hotkeys>=0.2.0", # optional: arrow-key navigation in image lightbox
     "openai>=1.0.0",
     "duckduckgo-search>=6.0.0",
     "pillow>=10.0.0",
