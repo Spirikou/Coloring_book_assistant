@@ -54,10 +54,10 @@ def _build_theme_context_from_concept(concept: dict) -> dict:
 
 def create_executor_node():
     """Create the executor node that generates content."""
-    from config import EXECUTOR_MODEL
+    from config import EXECUTOR_MODEL, EXECUTOR_MODEL_TEMPERATURE
     llm = ChatOpenAI(
         model=EXECUTOR_MODEL,
-        temperature=0.7,
+        temperature=EXECUTOR_MODEL_TEMPERATURE,
         api_key=os.getenv("OPENAI_API_KEY")
     )
     

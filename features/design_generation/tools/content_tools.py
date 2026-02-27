@@ -33,10 +33,10 @@ load_dotenv()
 
 def get_llm():
     """Get the language model instance."""
-    from config import CONTENT_MODEL
+    from config import CONTENT_MODEL, CONTENT_MODEL_TEMPERATURE
     return ChatOpenAI(
         model=CONTENT_MODEL,
-        temperature=0.5,
+        temperature=CONTENT_MODEL_TEMPERATURE,
         api_key=os.getenv("OPENAI_API_KEY")
     )
 
@@ -628,19 +628,19 @@ You are an expert at creating MidJourney prompts for BOOK COVER BACKGROUND image
 ## PROMPT FORMAT:
 Create exactly {cover_count} prompts. Each prompt MUST follow this format:
 
-"[theme/subject], [style keywords], book cover, [details], rich colors, illustrated, no text, no letters, no words --ar 2:3"
+"[theme/subject], [style keywords], book cover, [details], rich colors, illustrated, no text, no letters, no words --ar 2:1"
 
 ## CRITICAL RULES:
 1. EXACTLY {cover_count} prompts.
 2. Keywords ONLY - NO sentences.
 3. MUST include "book cover" or "cover art" or "cover design" in every prompt.
 4. MUST include "no text" or "no words" or "no letters" so the image has no title/text.
-5. MUST end with "--ar 2:3" (portrait book cover ratio).
+5. MUST end with "--ar 2:1" (landscape book cover ratio).
 6. MUST imply full color (e.g. "rich colors", "illustrated", "full color"). Do NOT use "black and white" or "--no color".
 7. Do NOT include: "coloring book page", "clean and simple line art", "black and white" — those are for inside pages only.
 8. Match the book theme and artistic style above so the cover fits the inside pages.
 
-## GOOD: forest animals, art nouveau border, book cover, decorative frame, rich colors, illustrated, no text --ar 2:3
+## GOOD: forest animals, art nouveau border, book cover, decorative frame, rich colors, illustrated, no text --ar 2:1
 ## BAD: owl, coloring book page, clean and simple line art, black and white --no color --ar 1:1 (that is for inside pages)
 
 Return a JSON array with exactly {cover_count} prompts. No markdown, just the array.""")

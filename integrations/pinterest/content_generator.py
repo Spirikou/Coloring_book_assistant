@@ -7,18 +7,20 @@ import logging
 from openai import OpenAI
 
 try:
-    from .config import OPENAI_MODEL
+    from .config import OPENAI_MODEL, OPENAI_TEMPERATURE
 except ImportError:
     # Fallback for absolute import (shouldn't happen, but just in case)
     try:
-        from integrations.pinterest.config import OPENAI_MODEL
+        from integrations.pinterest.config import OPENAI_MODEL, OPENAI_TEMPERATURE
     except ImportError:
         # Last resort: try main config or use default
         try:
-            from config import PINTEREST_MODEL
+            from config import PINTEREST_MODEL, PINTEREST_MODEL_TEMPERATURE
             OPENAI_MODEL = PINTEREST_MODEL
+            OPENAI_TEMPERATURE = PINTEREST_MODEL_TEMPERATURE
         except ImportError:
             OPENAI_MODEL = "gpt-4.1-mini"
+            OPENAI_TEMPERATURE = 0.7
 
 from .models import BookConfig, PinContent
 
@@ -63,7 +65,7 @@ class ContentGenerator:
                         "content": prompt
                     }
                 ],
-                temperature=0.7,
+                temperature=OPENAI_TEMPERATURE,
                 max_tokens=500,
             )
             

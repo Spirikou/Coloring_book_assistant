@@ -122,8 +122,10 @@ def _init_mj_session_state() -> None:
         },
         "mj_batch_selected_indices": [],
         "mj_design_images_folders": {},
-        "mj_lightbox_open": False,
-        "mj_lightbox_index": 0,
+        # Inline preview (replaces lightbox overlay)
+        "mj_preview_open": False,
+        "mj_preview_index": 0,
+        "mj_preview_folder": "",
         # Cover workflow (separate from inside)
         "mj_cover_status": {
             "publish_status": "idle",
@@ -154,7 +156,6 @@ def _init_mj_session_state() -> None:
             "download_error": "",
             "downloaded_paths": [],
         },
-        "mj_lightbox_folder": "",
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -629,7 +630,159 @@ def _render_downloaded_images_gallery(
     }
     st.session_state["mj_selected_images"][str(folder)] = selected_set
 
-    # Lightbox is rendered at top of tab (A1) when open; no duplicate here
+    # Inline preview panel above grid (replaces lightbox overlay)
+    preview_open = st.session_state.get("mj_preview_open", False)
+    preview_folder = st.session_state.get("mj_preview_folder", "")
+    if preview_open and preview_folder == str(folder) and paths:
+        idx = st.session_state.get("mj_preview_index", 0)
+        idx = max(0, min(idx, len(paths) - 1))
+        st.session_state["mj_preview_index"] = idx
+        current_path = paths[idx]
+        current_name = current_path.name
+        is_selected = current_name in selected_set
+
+        st.markdown(f"**Preview:** {current_name} — {idx + 1} / {len(paths)}")
+        col_img, col_actions = st.columns([3, 1])
+        with col_img:
+            try:
+                data_uri = _image_to_data_uri(current_path, max_longest_side=2000)
+                if data_uri:
+                    st.markdown(
+                        f'<img src="{data_uri}" alt="{current_name}" style="max-width: 100%; max-height: 86vh; object-fit: contain; border-radius: 8px;" />',
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.image(str(current_path))
+            except (OSError, ValueError):
+                st.warning(f"Corrupted: {current_name}")
+        with col_actions:
+            st.markdown("**Actions**")
+            if st.button(
+                "← Prev",
+                key=f"mj_preview_prev_{key_prefix}",
+                disabled=idx <= 0,
+                type="secondary",
+            ):
+                if idx > 0:
+                    st.session_state["mj_preview_index"] = idx - 1
+                st.rerun()
+            if st.button(
+                "Next →",
+                key=f"mj_preview_next_{key_prefix}",
+                disabled=idx >= len(paths) - 1,
+                type="secondary",
+            ):
+                if idx < len(paths) - 1:
+                    st.session_state["mj_preview_index"] = idx + 1
+                st.rerun()
+            label = "Deselect" if is_selected else "Select"
+            if st.button(label, key=f"mj_preview_select_{key_prefix}", type="secondary"):
+                sel_images = st.session_state.get("mj_selected_images", {}).get(
+                    str(folder), set()
+                ) or set()
+                if is_selected:
+                    st.session_state.pop(f"mj_sel_{current_name}", None)
+                    sel_images = {n for n in sel_images if n != current_name}
+                else:
+                    st.session_state[f"mj_sel_{current_name}"] = True
+                    sel_images.add(current_name)
+                if "mj_selected_images" not in st.session_state:
+                    st.session_state["mj_selected_images"] = {}
+                st.session_state["mj_selected_images"][str(folder)] = sel_images
+                st.rerun()
+            if st.button(
+                "Delete",
+                key=f"mj_preview_delete_{key_prefix}",
+                type="secondary",
+            ):
+                deleted_name = current_name
+                _do_delete_one(current_path, folder, mj_status)
+                st.session_state.pop(f"mj_sel_{deleted_name}", None)
+                if (
+                    "mj_selected_images" in st.session_state
+                    and str(folder) in st.session_state["mj_selected_images"]
+                ):
+                    st.session_state["mj_selected_images"][str(folder)] = {
+                        n
+                        for n in st.session_state["mj_selected_images"][str(folder)]
+                        if n != deleted_name
+                    }
+                new_paths = [
+                    Path(p) if not isinstance(p, Path) else p
+                    for p in list_images_in_folder(str(folder))
+                    if Path(p).exists()
+                ]
+                if not new_paths:
+                    st.session_state["mj_preview_open"] = False
+                else:
+                    new_idx = min(idx, len(new_paths) - 1)
+                    st.session_state["mj_preview_index"] = new_idx
+                st.rerun()
+            if selected_set and st.button(
+                f"Delete selected ({len(selected_set)})",
+                key=f"mj_preview_del_selected_{key_prefix}",
+                type="secondary",
+            ):
+                deleted_names = set()
+                for p in paths:
+                    if p.name in selected_set:
+                        try:
+                            p.unlink(missing_ok=True)
+                            deleted_names.add(p.name)
+                        except Exception:
+                            pass
+                if deleted_names:
+                    _prune_evaluations_for_deleted(folder, deleted_names)
+                    mj_status["downloaded_paths"] = [
+                        x
+                        for x in mj_status.get("downloaded_paths", [])
+                        if Path(x).name not in deleted_names
+                    ]
+                    for name in deleted_names:
+                        st.session_state.pop(f"mj_sel_{name}", None)
+                    if "mj_selected_images" in st.session_state:
+                        st.session_state["mj_selected_images"][str(folder)] = set()
+                new_paths = [
+                    Path(p) if not isinstance(p, Path) else p
+                    for p in list_images_in_folder(str(folder))
+                    if Path(p).exists()
+                ]
+                if not new_paths:
+                    st.session_state["mj_preview_open"] = False
+                else:
+                    new_idx = min(idx, len(new_paths) - 1)
+                    st.session_state["mj_preview_index"] = new_idx
+                st.rerun()
+            if st.button(
+                "✕ Close",
+                key=f"mj_preview_close_{key_prefix}",
+                type="secondary",
+            ):
+                st.session_state["mj_preview_open"] = False
+                st.rerun()
+
+        # Keyboard navigation: left/right arrows to move, Esc to close
+        try:
+            import streamlit_hotkeys as hotkeys
+
+            hotkeys.activate(
+                [
+                    hotkeys.hk("left", "ArrowLeft"),
+                    hotkeys.hk("right", "ArrowRight"),
+                    hotkeys.hk("esc", "Escape"),
+                ]
+            )
+            if hotkeys.pressed("left") and idx > 0:
+                st.session_state["mj_preview_index"] = idx - 1
+                st.rerun()
+            if hotkeys.pressed("right") and idx < len(paths) - 1:
+                st.session_state["mj_preview_index"] = idx + 1
+                st.rerun()
+            if hotkeys.pressed("esc"):
+                st.session_state["mj_preview_open"] = False
+                st.rerun()
+        except Exception:
+            pass
 
     col_title, col_open, col_save, col_analyze, col_delete_sel, col_delete_all = st.columns([2, 1, 1, 1, 1, 1])
     with col_title:
@@ -801,9 +954,9 @@ def _render_downloaded_images_gallery(
                     with btn_col1:
                         img_index = row_start + i
                         if st.button("View", key=f"mj_view_{p.name}_{row_start}_{i}", type="secondary"):
-                            st.session_state["mj_lightbox_open"] = True
-                            st.session_state["mj_lightbox_index"] = img_index
-                            st.session_state["mj_lightbox_folder"] = str(folder)
+                            st.session_state["mj_preview_open"] = True
+                            st.session_state["mj_preview_index"] = img_index
+                            st.session_state["mj_preview_folder"] = str(folder)
                             st.rerun()
                     with btn_col2:
                         if st.button("Delete", key=f"mj_del_{p.name}_{row_start}_{i}", type="secondary"):
@@ -829,12 +982,7 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
     generated_designs = generated_designs or []
 
     _init_mj_session_state()
-    if _process_lightbox_action():
-        return  # rerun already triggered
     mj_status = st.session_state.mj_status
-
-    # A1: Render lightbox first when open so overlay paints before grid (no flash)
-    _maybe_render_lightbox_at_top(mj_status)
 
     st.markdown("## Image Generation")
     mj_automated_process = st.session_state.get("mj_automated_process")

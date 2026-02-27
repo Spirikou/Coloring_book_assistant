@@ -109,10 +109,10 @@ def get_executor_tools():
 
 def create_executor_agent():
     """Create and return the executor agent."""
-    from config import EXECUTOR_MODEL
+    from config import EXECUTOR_MODEL, EXECUTOR_MODEL_TEMPERATURE
     llm = ChatOpenAI(
         model=EXECUTOR_MODEL,
-        temperature=0.7,
+        temperature=EXECUTOR_MODEL_TEMPERATURE,
         api_key=os.getenv("OPENAI_API_KEY")
     )
     

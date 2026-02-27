@@ -12,7 +12,7 @@ from typing import Callable
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 
-from config import IMAGE_EVALUATOR_MODEL, IMAGE_EVALUATIONS_FILE
+from config import IMAGE_EVALUATOR_MODEL, IMAGE_EVALUATOR_MODEL_TEMPERATURE, IMAGE_EVALUATIONS_FILE
 
 PASS_THRESHOLD = 80
 
@@ -68,7 +68,7 @@ def _get_evaluator_llm() -> ChatOpenAI:
     """Get the LLM for image evaluation."""
     return ChatOpenAI(
         model=IMAGE_EVALUATOR_MODEL,
-        temperature=0.2,
+        temperature=IMAGE_EVALUATOR_MODEL_TEMPERATURE,
         api_key=os.getenv("OPENAI_API_KEY"),
     )
 

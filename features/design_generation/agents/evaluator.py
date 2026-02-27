@@ -104,10 +104,10 @@ PASS_THRESHOLD = 80
 
 def get_evaluator_llm():
     """Get the LLM for evaluation with lower temperature for consistency."""
-    from config import DESIGN_EVALUATOR_MODEL
+    from config import DESIGN_EVALUATOR_MODEL, DESIGN_EVALUATOR_MODEL_TEMPERATURE
     return ChatOpenAI(
         model=DESIGN_EVALUATOR_MODEL,
-        temperature=0.2,
+        temperature=DESIGN_EVALUATOR_MODEL_TEMPERATURE,
         api_key=os.getenv("OPENAI_API_KEY")
     )
 
@@ -523,9 +523,9 @@ COVER_PROMPTS_EVALUATOR_PROMPT = """You are a strict quality evaluator for MidJo
 {theme_section}
 
 ### Technical Requirements (25 points)
-1. **Count**: Target is 3–5 cover prompts. Current count: {prompt_count}. Slightly under or over is acceptable. Do NOT fail solely for 4 or 6 prompts.
+1. **Count**: Target is 15 cover prompts. Current count: {prompt_count}. Slightly under or over (e.g. 12–18) is acceptable. Do NOT fail solely for being a few under or over.
 
-2. **Format**: Each prompt must be comma-separated keywords (no full sentences). Must end with "--ar 2:3" (portrait book cover ratio).
+2. **Format**: Each prompt must be comma-separated keywords (no full sentences). Must end with "--ar 2:1" (landscape book cover ratio).
 
 3. **Cover-specific (CRITICAL)**:
    - Must describe a BOOK COVER BACKGROUND (e.g. contain "book cover", "cover art", "cover design", or "illustrated cover").
@@ -566,7 +566,7 @@ Return ONLY valid JSON, no other text."""
 def evaluate_cover_prompts(prompts: list, theme_context: dict = None) -> dict:
     """
     Evaluate MidJourney cover background prompts (full color, no text).
-    Criteria: book cover background, no inside-page wording, theme consistency, --ar 2:3.
+    Criteria: book cover background, no inside-page wording, theme consistency, --ar 2:1.
 
     Returns:
         dict with: passed, score, issues, summary
@@ -585,12 +585,12 @@ def evaluate_cover_prompts(prompts: list, theme_context: dict = None) -> dict:
 
     prompt_count = len(prompts)
 
-    # Pre-check: forbidden inside-page phrasing; required --ar 2:3; prefer "no text"
+    # Pre-check: forbidden inside-page phrasing; required --ar 2:1; prefer "no text"
     format_issues = []
     for i, p in enumerate(prompts):
         p_lower = p.lower()
-        if "--ar 2:3" not in p_lower and "--ar 2:3" not in p.replace(" ", ""):
-            format_issues.append(f"Prompt {i+1} should end with --ar 2:3 for book cover")
+        if "--ar 2:1" not in p_lower and "--ar 2:1" not in p.replace(" ", ""):
+            format_issues.append(f"Prompt {i+1} should end with --ar 2:1 for book cover")
         if "coloring book page" in p_lower or "clean and simple line art" in p_lower or "black and white" in p_lower or "--no color" in p_lower:
             format_issues.append(f"Prompt {i+1} contains inside-page wording (cover must be full color, no B&W)")
         if "book cover" not in p_lower and "cover art" not in p_lower and "cover design" not in p_lower and "cover background" not in p_lower:
