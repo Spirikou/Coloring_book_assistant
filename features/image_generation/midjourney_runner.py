@@ -587,6 +587,64 @@ def run_automated_thread(
             pass
 
 
+def run_automated_interior_then_cover_thread(
+    interior_prompts: list[str],
+    interior_output_folder: Path,
+    cover_prompts: list[str],
+    cover_output_folder: Path,
+    button_coordinates: dict,
+    browser_port: int,
+    stop_flag: dict,
+    interior_shared: dict,
+    interior_publish_progress: dict,
+    interior_uxd_progress: dict,
+    interior_download_progress: dict,
+    cover_shared: dict,
+    cover_publish_progress: dict,
+    cover_uxd_progress: dict,
+    cover_download_progress: dict,
+    viewport: dict | None = None,
+    coordinates_viewport: dict | None = None,
+    debug_show_clicks: bool = False,
+) -> None:
+    """Run full automated pipeline for interior, then for cover, in one process. Respects stop_flag for both."""
+    stop_check = lambda: stop_flag.get("stop", False)
+    # Phase 1: interior
+    if interior_prompts:
+        run_automated_thread(
+            interior_prompts,
+            button_coordinates,
+            browser_port,
+            interior_output_folder,
+            stop_flag,
+            interior_shared,
+            interior_publish_progress,
+            interior_uxd_progress,
+            interior_download_progress,
+            viewport=viewport,
+            coordinates_viewport=coordinates_viewport,
+            debug_show_clicks=debug_show_clicks,
+        )
+    if stop_check():
+        return
+    # Phase 2: cover
+    if cover_prompts:
+        run_automated_thread(
+            cover_prompts,
+            button_coordinates,
+            browser_port,
+            cover_output_folder,
+            stop_flag,
+            cover_shared,
+            cover_publish_progress,
+            cover_uxd_progress,
+            cover_download_progress,
+            viewport=viewport,
+            coordinates_viewport=coordinates_viewport,
+            debug_show_clicks=debug_show_clicks,
+        )
+
+
 def run_batch_automated_thread(
     designs_with_folders: list[tuple[dict, Path, int]],
     button_coordinates: dict,
@@ -856,6 +914,103 @@ def run_automated_process(
     )
     proc.start()
     return proc, manager, mgr_stop, mgr_shared, mgr_publish, mgr_uxd, mgr_download
+
+
+def run_automated_interior_then_cover_process(
+    interior_prompts: list[str],
+    interior_output_folder: Path,
+    cover_prompts: list[str],
+    cover_output_folder: Path,
+    button_coordinates: dict,
+    browser_port: int,
+    stop_flag: dict,
+    interior_shared: dict,
+    interior_publish_progress: dict,
+    interior_uxd_progress: dict,
+    interior_download_progress: dict,
+    cover_shared: dict,
+    cover_publish_progress: dict,
+    cover_uxd_progress: dict,
+    cover_download_progress: dict,
+    viewport: dict | None = None,
+    coordinates_viewport: dict | None = None,
+    debug_show_clicks: bool = False,
+) -> tuple[
+    multiprocessing.Process,
+    multiprocessing.managers.SyncManager,
+    dict,
+    dict,
+    dict,
+    dict,
+    dict,
+    dict,
+    dict,
+    dict,
+    dict,
+    dict,
+]:
+    """Run interior then cover automated pipelines in one process. Returns (process, manager, stop_flag, interior_shared, cover_shared, interior_publish, interior_uxd, interior_download, cover_publish, cover_uxd, cover_download)."""
+    manager = multiprocessing.Manager()
+    mgr_stop = manager.dict()
+    mgr_stop["stop"] = stop_flag.get("stop", False)
+    mgr_interior_shared = manager.dict()
+    _copy_dict(mgr_interior_shared, interior_shared)
+    mgr_interior_shared["batch_results"] = manager.list()
+    mgr_cover_shared = manager.dict()
+    _copy_dict(mgr_cover_shared, cover_shared)
+    mgr_interior_publish = manager.dict()
+    _copy_dict(mgr_interior_publish, interior_publish_progress)
+    mgr_interior_uxd = manager.dict()
+    _copy_dict(mgr_interior_uxd, interior_uxd_progress)
+    mgr_interior_download = manager.dict()
+    _copy_dict(mgr_interior_download, interior_download_progress)
+    mgr_cover_publish = manager.dict()
+    _copy_dict(mgr_cover_publish, cover_publish_progress)
+    mgr_cover_uxd = manager.dict()
+    _copy_dict(mgr_cover_uxd, cover_uxd_progress)
+    mgr_cover_download = manager.dict()
+    _copy_dict(mgr_cover_download, cover_download_progress)
+
+    proc = multiprocessing.Process(
+        target=run_automated_interior_then_cover_thread,
+        args=(
+            interior_prompts,
+            interior_output_folder,
+            cover_prompts,
+            cover_output_folder,
+            button_coordinates,
+            browser_port,
+            mgr_stop,
+            mgr_interior_shared,
+            mgr_interior_publish,
+            mgr_interior_uxd,
+            mgr_interior_download,
+            mgr_cover_shared,
+            mgr_cover_publish,
+            mgr_cover_uxd,
+            mgr_cover_download,
+        ),
+        kwargs={
+            "viewport": viewport,
+            "coordinates_viewport": coordinates_viewport,
+            "debug_show_clicks": debug_show_clicks,
+        },
+        daemon=True,
+    )
+    proc.start()
+    return (
+        proc,
+        manager,
+        mgr_stop,
+        mgr_interior_shared,
+        mgr_cover_shared,
+        mgr_interior_publish,
+        mgr_interior_uxd,
+        mgr_interior_download,
+        mgr_cover_publish,
+        mgr_cover_uxd,
+        mgr_cover_download,
+    )
 
 
 def run_batch_automated_process(

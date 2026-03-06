@@ -14,6 +14,45 @@ OUTPUT_DIR = Path(os.getenv("CB_OUTPUT_DIR", str(PROJECT_ROOT)))
 SAVED_DESIGNS_DIR = OUTPUT_DIR / "saved_designs"
 PINTEREST_PUBLISH_DIR = OUTPUT_DIR / "pinterest_publish"
 GENERATED_IMAGES_DIR = OUTPUT_DIR / "generated_images"
+SAVED_DESIGN_PACKAGES_DIR = OUTPUT_DIR / "saved_design_packages"
+
+# -----------------------------------------------------------------------------
+# LLM Models (performance-optimized per task)
+# Override via env: CB_DESIGN_EVALUATOR_MODEL, CB_CONTENT_MODEL, etc.
+# -----------------------------------------------------------------------------
+DESIGN_EVALUATOR_MODEL = os.getenv("CB_DESIGN_EVALUATOR_MODEL", "gpt-4.1-mini")
+CONTENT_MODEL = os.getenv("CB_CONTENT_MODEL", "gpt-5-mini")
+EXECUTOR_MODEL = os.getenv("CB_EXECUTOR_MODEL", "gpt-5-mini")
+PINTEREST_MODEL = os.getenv("CB_PINTEREST_MODEL", "gpt-4.1-mini")
+GUIDE_CHAT_MODEL = os.getenv("CB_GUIDE_CHAT_MODEL", "gpt-4.1-mini")
+IMAGE_EVALUATOR_MODEL = os.getenv("CB_IMAGE_EVALUATOR_MODEL", "gpt-5-mini")
+
+
+def _float_env(key: str, default: float) -> float:
+    """Parse env var as float; return default if missing or invalid."""
+    v = os.getenv(key)
+    if v is None:
+        return default
+    try:
+        return float(v)
+    except ValueError:
+        return default
+
+
+# -----------------------------------------------------------------------------
+# LLM Temperatures (0.0 = deterministic, 1.0 = more creative)
+# Override via env: CB_CONTENT_MODEL_TEMPERATURE, CB_DESIGN_EVALUATOR_MODEL_TEMPERATURE, etc.
+# -----------------------------------------------------------------------------
+CONTENT_MODEL_TEMPERATURE = _float_env("CB_CONTENT_MODEL_TEMPERATURE", 0.2)
+DESIGN_EVALUATOR_MODEL_TEMPERATURE = _float_env("CB_DESIGN_EVALUATOR_MODEL_TEMPERATURE", 0.2)
+EXECUTOR_MODEL_TEMPERATURE = _float_env("CB_EXECUTOR_MODEL_TEMPERATURE", 0.7)
+IMAGE_EVALUATOR_MODEL_TEMPERATURE = _float_env("CB_IMAGE_EVALUATOR_MODEL_TEMPERATURE", 0.2)
+PINTEREST_MODEL_TEMPERATURE = _float_env("CB_PINTEREST_MODEL_TEMPERATURE", 0.7)
+GUIDE_CHAT_MODEL_TEMPERATURE = _float_env("CB_GUIDE_CHAT_MODEL_TEMPERATURE", 0.3)
+
+# Image quality evaluator persistence
+IMAGE_EVALUATIONS_FILE = "image_evaluations.json"
+IMAGE_MIN_SCORE_THRESHOLD = 70
 
 # Midjourney config (integrated from midjourney_agent config.json)
 # get_midjourney_config() returns flat dict with keys expected by integrations.midjourney

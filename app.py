@@ -25,6 +25,8 @@ from dotenv import load_dotenv
 from ui.tabs.guide_tab import render_guide_tab
 from ui.tabs.pinterest_tab import render_pinterest_tab
 from ui.tabs.canva_tab import render_canva_tab
+from ui.tabs.orchestration_tab import render_orchestration_tab
+from ui.components.design_selector import render_design_package_selector
 from features.design_generation.ui import render_design_generation_tab
 from features.image_generation.ui import render_image_generation_tab
 
@@ -120,7 +122,11 @@ def main():
             st.info("Please set your OPENAI_API_KEY in the .env file")
         else:
             st.success("API key loaded")
-        
+
+        st.markdown("---")
+        st.markdown("### Current design")
+        render_design_package_selector(compact=True, key_prefix="sidebar_design")
+
         st.markdown("---")
         st.markdown("### Workflow Stages")
         st.markdown("""
@@ -129,10 +135,11 @@ def main():
         2. **Image Generation** - Upload/generate images
         3. **Canva Design** - Create layout from images
         4. **Pinterest Publishing** - Publish to Pinterest
-        
+        5. **Orchestration** - Run pipelines (Design to Publish)
+
         Canva and Pinterest use the same images folder.
         """)
-    
+
     # Initialize session state
     if "workflow_state" not in st.session_state:
         st.session_state.workflow_state = None
@@ -141,12 +148,13 @@ def main():
         st.session_state.is_running = False
     
     # Multi-tab interface
-    tab0, tab1, tab2, tab3, tab4 = st.tabs([
+    tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "Get Started",
         "Design Generation",
         "Image Generation",
         "Canva Design",
         "Pinterest Publishing",
+        "Orchestration",
     ])
     
     with tab0:
@@ -161,6 +169,10 @@ def main():
         if workflow_state:
             render_image_generation_tab(workflow_state, generated_designs=generated_designs)
         else:
+            from core.persistence import list_design_packages
+            packages = list_design_packages()
+            if packages:
+                render_design_package_selector(compact=False, key_prefix="img_gen_design")
             st.info("Generate a design package first in the Design Generation tab.")
     
     with tab3:
@@ -168,6 +180,10 @@ def main():
         if workflow_state:
             render_canva_tab(workflow_state)
         else:
+            from core.persistence import list_design_packages
+            packages = list_design_packages()
+            if packages:
+                render_design_package_selector(compact=False, key_prefix="canva_design")
             st.info("Generate a design package and upload images first.")
     
     with tab4:
@@ -175,8 +191,15 @@ def main():
         if workflow_state:
             render_pinterest_tab(workflow_state)
         else:
+            from core.persistence import list_design_packages
+            packages = list_design_packages()
+            if packages:
+                render_design_package_selector(compact=False, key_prefix="pinterest_design")
             st.info("Generate a design package and upload images first.")
-    
+
+    with tab5:
+        render_orchestration_tab()
+
     st.markdown(
         """
         <div style='text-align: center; color: #666; padding: 20px 0;'>

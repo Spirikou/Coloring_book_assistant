@@ -8,6 +8,9 @@ import logging
 import multiprocessing
 import time
 
+from . import config
+from .utils import _find_images
+
 logger = logging.getLogger(__name__)
 
 
@@ -82,25 +85,50 @@ def _create_design_via_multiprocessing(
         process.start()
         logger.info(f"Started Canva designer process (PID: {process.pid})")
 
+        # Compute timeout: base + per_image * count, capped at max
+        image_count = len(_find_images(Path(effective_folder)))
+        process_timeout = min(
+            config.CANVA_PROCESS_TIMEOUT_MAX,
+            config.CANVA_PROCESS_TIMEOUT_BASE
+            + config.CANVA_PROCESS_TIMEOUT_PER_IMAGE * max(1, image_count),
+        )
+        logger.info(f"Process timeout: {process_timeout}s (base + {image_count} images)")
+
         result = None
-        process_timeout = 600
         start_time = time.time()
+        deadline = start_time + process_timeout
 
         while process.is_alive():
             try:
                 progress_update = progress_queue.get(timeout=0.1)
                 if progress_callback:
                     progress_callback(progress_update)
+                # Extend deadline when we receive per-image progress (work is ongoing)
+                if progress_update.get("step") == "uploading_image":
+                    remaining = progress_update.get("total", image_count) - progress_update.get(
+                        "current", 0
+                    )
+                    if remaining > 0:
+                        # Give enough time for remaining images plus buffer
+                        extension = (
+                            config.CANVA_PROCESS_TIMEOUT_PER_IMAGE * remaining + 60
+                        )
+                        new_deadline = time.time() + extension
+                        if new_deadline > deadline:
+                            deadline = min(new_deadline, start_time + config.CANVA_PROCESS_TIMEOUT_MAX)
+                            logger.debug(f"Extended deadline: {int(deadline - time.time())}s remaining")
             except Exception:
                 pass
 
-            if time.time() - start_time > process_timeout:
+            if time.time() > deadline:
                 logger.error("Canva designer process timeout")
                 process.terminate()
                 process.join(timeout=5)
                 if process.is_alive():
                     process.kill()
-                raise TimeoutError(f"Canva designer exceeded {process_timeout} second timeout")
+                raise TimeoutError(
+                    f"Canva designer exceeded {int(deadline - start_time)} second timeout"
+                )
 
             time.sleep(0.05)
 

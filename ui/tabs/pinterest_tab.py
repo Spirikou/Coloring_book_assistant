@@ -104,10 +104,17 @@ def render_pinterest_tab(state: dict):
                         # Use preview selection (user may have removed images)
                         selected = preview.get("selected_images") or []
                         design_state = {**state, "title": preview["title"], "description": preview["description"]}
+                        folder = config["images_folder"]
+                        from utils.folder_monitor import get_images_in_folder
+                        all_in_folder = get_images_in_folder(folder)
+                        no_exclusions = len(selected) == 0 or len(selected) == len(all_in_folder)
+                        has_book_config = (Path(folder) / "book_config.json").exists()
+                        use_direct = has_book_config and no_exclusions
                         folder_path = workflow.prepare_publishing_folder(
                             design_state=design_state,
-                            images_folder=config["images_folder"],
+                            images_folder=folder,
                             selected_images=selected if selected else None,
+                            use_folder_directly=use_direct,
                         )
                         state["pinterest_folder_path"] = folder_path
                         state["pinterest_status"] = "publishing"

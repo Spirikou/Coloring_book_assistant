@@ -57,6 +57,16 @@ OUTLINE_HEIGHT_PERCENT: float = 6.0
 BLANK_BETWEEN: bool = True  # leave a blank page after each placed image
 
 # ============================================================================
+# CANVA DESIGN CREATION TIMEOUT
+# ============================================================================
+# Process timeout for multiprocessing design creation.
+# Total timeout = BASE + (PER_IMAGE * image_count), capped at MAX.
+# Example: 10 images -> 300 + 450 = 750s (capped at 1800)
+CANVA_PROCESS_TIMEOUT_BASE: int = 300  # Base seconds (design setup, navigation)
+CANVA_PROCESS_TIMEOUT_PER_IMAGE: int = 45  # Seconds per image (upload + place)
+CANVA_PROCESS_TIMEOUT_MAX: int = 1800  # Maximum timeout (30 min)
+
+# ============================================================================
 # DEFAULTS (for workflow integration)
 # ============================================================================
 DEFAULT_PAGE_SIZE = "8.625x8.75"

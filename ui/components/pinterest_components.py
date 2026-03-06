@@ -6,6 +6,7 @@ from integrations.pinterest.antivirus_check import run_full_check, get_bitdefend
 from ui.components.shared_checks import render_combined_checks, BROWSER_STATUS_KEY
 from core.persistence import (
     save_pinterest_config,
+    save_preview_to_images_folder,
     load_pinterest_config,
     list_publish_sessions,
     load_session_config,
@@ -190,6 +191,28 @@ def render_preview_section(state: dict, images_folder: str) -> dict:
         help="Description for all pins (max 600 chars recommended)",
         height=150,
     )
+
+    # Save modifications button - persists title/description to book_config.json in images folder
+    if images_folder and Path(images_folder).exists():
+        if st.button(
+            "Save modifications",
+            key="pinterest_save_modifications_btn",
+            help="Save title and description to the images folder before publishing. Changes persist across sessions.",
+        ):
+            if save_preview_to_images_folder(
+                images_folder,
+                title,
+                description,
+                seo_keywords=state.get("seo_keywords"),
+            ):
+                state["title"] = title
+                state["description"] = description
+                if "workflow_state" in st.session_state:
+                    st.session_state.workflow_state = state
+                st.success("Modifications saved to the images folder.")
+                st.rerun()
+            else:
+                st.error("Failed to save modifications.")
 
     # Excluded images (removed from batch before publishing)
     excluded = set(state.get("pinterest_excluded_images", []))

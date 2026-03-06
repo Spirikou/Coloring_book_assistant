@@ -8,7 +8,7 @@ It can be used by LangChain agents for automated design creation.
 import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from langchain_core.tools import tool
 
@@ -48,6 +48,7 @@ def create_canva_design_core(
     outline_height_percent: Optional[float] = None,
     blank_between: Optional[bool] = None,
     dry_run: bool = False,
+    progress_callback: Optional[Callable[[dict], None]] = None,
 ) -> CanvaDesignOutput:
     """
     Core function to create a Canva design from images in a folder.
@@ -164,7 +165,7 @@ def create_canva_design_core(
         
         with publisher:
             # Run the publisher
-            summary = publisher.run(folder)
+            summary = publisher.run(folder, progress_callback=progress_callback)
         
         # Read the output JSON file to get full details
         output_json_path = folder / "canva_output.json"

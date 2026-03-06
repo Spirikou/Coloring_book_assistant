@@ -24,19 +24,23 @@ class ColoringBookState(TypedDict, total=False):
     title: str
     description: str
     midjourney_prompts: list
+    cover_prompts: list  # Cover background prompts (no title text)
     seo_keywords: list
-    
+
     # Per-component attempt history for UI visibility
     title_attempts: list  # [{attempt, content, evaluation, feedback}, ...]
     prompts_attempts: list
+    cover_prompts_attempts: list
     keywords_attempts: list
-    
+
     # Quality scores
     title_score: int
     prompts_score: int
+    cover_prompts_score: int
     keywords_score: int
     title_passed: bool
     prompts_passed: bool
+    cover_prompts_passed: bool
     keywords_passed: bool
     
     # Workflow state
@@ -49,6 +53,7 @@ class ColoringBookState(TypedDict, total=False):
     
     # Image generation state
     images_folder_path: str  # Path to folder containing generated images
+    design_package_path: str  # Path to design package folder (design.json + images)
     uploaded_images: list  # List of image file paths
     images_ready: bool  # Flag indicating images are ready for next step
     
@@ -63,6 +68,7 @@ class ColoringBookState(TypedDict, total=False):
     theme_status: str  # "pending", "in_progress", "completed", "failed"
     title_status: str  # "pending", "in_progress", "completed", "failed"
     prompts_status: str  # "pending", "in_progress", "completed", "failed"
+    cover_prompts_status: str  # "pending", "in_progress", "completed", "failed"
     keywords_status: str  # "pending", "in_progress", "completed", "failed"
     
     # Pinterest publishing state
