@@ -20,6 +20,7 @@ from PIL import Image
 from config import GENERATED_IMAGES_DIR, IMAGE_MIN_SCORE_THRESHOLD, get_midjourney_config
 from features.image_generation.midjourney_runner import (
     run_automated_process,
+    run_automated_interior_then_cover_process,
     run_batch_automated_process,
     run_download_process,
     run_publish_process,
@@ -1000,6 +1001,25 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
         for key in ("batch_current_index", "batch_total", "batch_current_design_title", "batch_results"):
             if key in shared:
                 mj_status[key] = shared[key]
+    # When running combined interior+cover, sync cover shared and progress from manager dicts
+    if (
+        automated_running or (mj_automated_process is not None and not mj_automated_process.is_alive())
+    ) and "mj_automated_cover_shared" in st.session_state:
+        cover_shared = st.session_state.mj_automated_cover_shared
+        cover_status = st.session_state.mj_cover_status
+        for key in ("publish_status", "publish_error", "uxd_action_status", "uxd_action_error", "download_status", "download_error"):
+            if key in cover_shared:
+                cover_status[key] = cover_shared[key]
+        if "downloaded_paths" in cover_shared:
+            cover_status["downloaded_paths"] = cover_shared["downloaded_paths"]
+        for prog_key, sess_key in (
+            ("mj_automated_cover_publish_progress", "mj_cover_publish_progress"),
+            ("mj_automated_cover_uxd_progress", "mj_cover_uxd_progress"),
+            ("mj_automated_cover_download_progress", "mj_cover_download_progress"),
+        ):
+            if prog_key in st.session_state and sess_key in st.session_state:
+                st.session_state[sess_key].clear()
+                st.session_state[sess_key].update(dict(st.session_state[prog_key]))
     # Sync from publish process when running (status; progress is already the Manager dict)
     pub_proc = st.session_state.get("mj_publish_process")
     if pub_proc is not None and pub_proc.is_alive():
@@ -1239,6 +1259,14 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
         key="mj_run_automated_checkbox",
         help=f"Publish → Upscale all → Download all{est_text_auto}",
     )
+    then_run_cover = False
+    if run_automated:
+        then_run_cover = st.checkbox(
+            "Then run cover automated",
+            value=False,
+            key="mj_then_run_cover_checkbox",
+            help="After interior pipeline finishes, run the same pipeline for cover prompts (sequential).",
+        )
 
     col_pub, col_stop_pub = st.columns([4, 1])
     with col_pub:
@@ -1262,35 +1290,111 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
 
             if run_automated:
                 st.session_state.mj_automated_stop_flag["stop"] = False
-                shared = st.session_state.mj_automated_shared
-                shared["publish_status"] = "idle"
-                shared["publish_error"] = ""
-                shared["uxd_action_status"] = "idle"
-                shared["uxd_action_error"] = ""
-                shared["download_status"] = "idle"
-                shared["download_error"] = ""
-                shared["downloaded_paths"] = []
-                proc, manager, mgr_stop, mgr_shared, mgr_publish, mgr_uxd, mgr_download = run_automated_process(
-                    prompts,
-                    button_coords,
-                    settings["browser_debug_port"],
-                    Path(output_folder),
-                    st.session_state.mj_automated_stop_flag,
-                    shared,
-                    st.session_state.mj_publish_progress,
-                    st.session_state.mj_uxd_progress,
-                    st.session_state.mj_download_progress,
-                    viewport=viewport,
-                    coordinates_viewport=coord_vp,
-                    debug_show_clicks=debug_show_clicks,
+                # Cover prompts from session (cover section text area from previous run)
+                cover_raw = st.session_state.get(
+                    "mj_cover_prompts_area",
+                    "\n".join(state.get("cover_prompts", [])) if state.get("cover_prompts") else "",
                 )
-                st.session_state.mj_automated_process = proc
-                st.session_state.mj_automated_manager = manager
-                st.session_state.mj_automated_mgr_stop = mgr_stop
-                st.session_state.mj_automated_shared = mgr_shared
-                st.session_state.mj_publish_progress = mgr_publish
-                st.session_state.mj_uxd_progress = mgr_uxd
-                st.session_state.mj_download_progress = mgr_download
+                cover_prompts_list_for_run = [
+                    line.strip() for line in (cover_raw or "").strip().splitlines() if line.strip()
+                ]
+                if then_run_cover and cover_prompts_list_for_run:
+                    # Sequential: interior then cover in one process
+                    for key in ("mj_automated_cover_shared", "mj_automated_cover_publish_progress", "mj_automated_cover_uxd_progress", "mj_automated_cover_download_progress"):
+                        st.session_state.pop(key, None)
+                    shared = st.session_state.mj_automated_shared
+                    shared["publish_status"] = "idle"
+                    shared["publish_error"] = ""
+                    shared["uxd_action_status"] = "idle"
+                    shared["uxd_action_error"] = ""
+                    shared["download_status"] = "idle"
+                    shared["download_error"] = ""
+                    shared["downloaded_paths"] = []
+                    cover_shared = st.session_state.mj_cover_automated_shared
+                    cover_shared["publish_status"] = "idle"
+                    cover_shared["publish_error"] = ""
+                    cover_shared["uxd_action_status"] = "idle"
+                    cover_shared["uxd_action_error"] = ""
+                    cover_shared["download_status"] = "idle"
+                    cover_shared["download_error"] = ""
+                    cover_shared["downloaded_paths"] = []
+                    cover_folder = Path(output_folder) / "cover"
+                    cover_folder.mkdir(parents=True, exist_ok=True)
+                    (
+                        proc,
+                        manager,
+                        mgr_stop,
+                        mgr_interior_shared,
+                        mgr_cover_shared,
+                        mgr_interior_publish,
+                        mgr_interior_uxd,
+                        mgr_interior_download,
+                        mgr_cover_publish,
+                        mgr_cover_uxd,
+                        mgr_cover_download,
+                    ) = run_automated_interior_then_cover_process(
+                        prompts,
+                        Path(output_folder),
+                        cover_prompts_list_for_run,
+                        cover_folder,
+                        button_coords,
+                        settings["browser_debug_port"],
+                        st.session_state.mj_automated_stop_flag,
+                        shared,
+                        st.session_state.mj_publish_progress,
+                        st.session_state.mj_uxd_progress,
+                        st.session_state.mj_download_progress,
+                        cover_shared,
+                        st.session_state.mj_cover_publish_progress,
+                        st.session_state.mj_cover_uxd_progress,
+                        st.session_state.mj_cover_download_progress,
+                        viewport=viewport,
+                        coordinates_viewport=coord_vp,
+                        debug_show_clicks=debug_show_clicks,
+                    )
+                    st.session_state.mj_automated_process = proc
+                    st.session_state.mj_automated_manager = manager
+                    st.session_state.mj_automated_mgr_stop = mgr_stop
+                    st.session_state.mj_automated_shared = mgr_interior_shared
+                    st.session_state.mj_publish_progress = mgr_interior_publish
+                    st.session_state.mj_uxd_progress = mgr_interior_uxd
+                    st.session_state.mj_download_progress = mgr_interior_download
+                    st.session_state.mj_automated_cover_shared = mgr_cover_shared
+                    st.session_state.mj_automated_cover_publish_progress = mgr_cover_publish
+                    st.session_state.mj_automated_cover_uxd_progress = mgr_cover_uxd
+                    st.session_state.mj_automated_cover_download_progress = mgr_cover_download
+                else:
+                    shared = st.session_state.mj_automated_shared
+                    shared["publish_status"] = "idle"
+                    shared["publish_error"] = ""
+                    shared["uxd_action_status"] = "idle"
+                    shared["uxd_action_error"] = ""
+                    shared["download_status"] = "idle"
+                    shared["download_error"] = ""
+                    shared["downloaded_paths"] = []
+                    for key in ("mj_automated_cover_shared", "mj_automated_cover_publish_progress", "mj_automated_cover_uxd_progress", "mj_automated_cover_download_progress"):
+                        st.session_state.pop(key, None)
+                    proc, manager, mgr_stop, mgr_shared, mgr_publish, mgr_uxd, mgr_download = run_automated_process(
+                        prompts,
+                        button_coords,
+                        settings["browser_debug_port"],
+                        Path(output_folder),
+                        st.session_state.mj_automated_stop_flag,
+                        shared,
+                        st.session_state.mj_publish_progress,
+                        st.session_state.mj_uxd_progress,
+                        st.session_state.mj_download_progress,
+                        viewport=viewport,
+                        coordinates_viewport=coord_vp,
+                        debug_show_clicks=debug_show_clicks,
+                    )
+                    st.session_state.mj_automated_process = proc
+                    st.session_state.mj_automated_manager = manager
+                    st.session_state.mj_automated_mgr_stop = mgr_stop
+                    st.session_state.mj_automated_shared = mgr_shared
+                    st.session_state.mj_publish_progress = mgr_publish
+                    st.session_state.mj_uxd_progress = mgr_uxd
+                    st.session_state.mj_download_progress = mgr_download
             else:
                 st.session_state.mj_publish_stop_flag["stop"] = False
                 mj_status["publish_status"] = "running"
@@ -1496,10 +1600,10 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
             st.number_input(
                 "Count",
                 min_value=1,
-                max_value=20,
+                max_value=9999,
                 value=4,
                 key="mj_uxd_count",
-                help="Number of images to upscale or vary.",
+                help="Number of images to upscale or vary (no limit).",
             )
         )
 
@@ -1908,10 +2012,10 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
             st.number_input(
                 "Count",
                 min_value=1,
-                max_value=20,
+                max_value=9999,
                 value=4,
                 key="mj_cover_uxd_count",
-                help="Number of images to upscale or vary.",
+                help="Number of images to upscale or vary (no limit).",
             )
         )
 

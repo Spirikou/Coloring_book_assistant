@@ -490,7 +490,11 @@ Apply these instructions when creating the prompts!
 ## MAIN THEME (PRIMARY — MUST APPLY TO EVERY PROMPT):
 **{main_theme}**
 
-Every prompt MUST be clearly about this subject. The artistic style is how it is drawn, not what it is. Do NOT create prompts that are only about the style (e.g. generic Celtic patterns or mandalas) without the main theme—e.g. every prompt should feature {main_theme} or direct variations (scenes, details, compositions involving {main_theme}).
+- Every prompt MUST be clearly about this subject. The artistic style is how it is drawn, not what it is.
+- Use the EXACT main theme subject in every prompt—do NOT generalize or broaden the subject.
+  - Example: if main theme is "Highland cows", every prompt must include "highland cow" or "Highland cows", NOT just "cow".
+  - Example: if main theme is "Fae Highland Cows", use "highland cow" / "Highland cow" / "fae highland cow", NOT generic "cow".
+- Every prompt should feature {main_theme} or the exact subject (e.g. highland cow, Highland cows) in the opening keywords—never a generic or shortened form that loses the specific theme.
 """
 
     # Build artistic style guidance (secondary: how it looks)
@@ -540,7 +544,8 @@ Create approximately 50 prompts (target 48–55). Each prompt MUST follow this E
 9. EVERY prompt must include the ARTISTIC STYLE in the keywords (how it's drawn).
 10. NEVER include color-related keywords - these are black and white line art pages. Banned: red, blue, green, yellow, orange, purple, pink, vibrant, colorful, colourful, pastel, hue, multicolored, rainbow, golden, silver, crimson, azure, etc.
 
-## GOOD (main theme + style): Highland cow, Celtic knot border, floral wreath, coloring book page, clean and simple line art, black and white --no color --ar 1:1
+## GOOD (exact main theme + style): Highland cow, Celtic knot border, floral wreath, coloring book page, clean and simple line art, black and white --no color --ar 1:1
+## BAD (generic subject when theme is specific): cow, Celtic knot border... — use "highland cow" when main theme is "Highland cows", not "cow"
 ## BAD (style only, no main theme): Celtic knot, mandala, decorative border, coloring book page... — missing the main subject
 
 ## BAD PROMPTS (DO NOT DO THIS):
@@ -610,7 +615,8 @@ Apply these when creating the cover prompts!
         visual_elements = theme_context.get("visual_elements", [])
         style_section = f"""
 ## THEME & STYLE (match the inside pages):
-- **Main theme**: {main_theme}
+- **Main theme (use EXACT subject—do not generalize):** {main_theme}
+  - Every cover prompt must feature this exact subject (e.g. if "Highland cows", use "highland cow" or "Highland cows", NOT just "cow").
 - **Artistic style**: {artistic_style}
 - **Style keywords**: {', '.join(style_keywords)}
 - **Visual elements**: {', '.join(visual_elements)}

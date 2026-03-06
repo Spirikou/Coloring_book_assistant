@@ -406,11 +406,11 @@ Return ONLY valid JSON, no other text."""
 PROMPTS_EVALUATOR_MAIN_THEME_BLOCK = """
 ### Main theme consistency (25 points) — CRITICAL
 The main theme for this book is: **{main_theme}**
-- Every prompt must be clearly about this theme (subject). Prompts that are only about the artistic style or unrelated subjects (e.g. generic patterns with no link to the main theme) must fail this criterion.
-- Deduct heavily if a significant portion of prompts do not reflect the main theme. List prompt numbers that are off-theme in "prompts_off_theme".
+- Every prompt must be clearly about this theme (subject) using the EXACT or specific wording. Prompts that are only about the artistic style or unrelated subjects (e.g. generic patterns with no link to the main theme) must fail this criterion.
+- **Generalization = off-theme:** Prompts that use a broader or generic term instead of the specific main theme must be listed in "prompts_off_theme" and heavily penalized. Example: if main theme is "Highland cows", a prompt that says only "cow" (without "highland") is OFF-THEME; the prompt must use "highland cow" or "Highland cows".
+- Deduct heavily if a significant portion of prompts do not reflect the main theme or generalize it. List all off-theme prompt numbers (including generalized prompts) in "prompts_off_theme".
 - Score "main_theme_consistency_score" 0–25; below 15 is a serious failure.
 """
-
 
 def evaluate_prompts(prompts: list, theme_context: dict = None) -> dict:
     """
@@ -581,7 +581,7 @@ def evaluate_cover_prompts(prompts: list, theme_context: dict = None) -> dict:
         if not main_theme and theme_context.get("expanded_theme"):
             main_theme = (theme_context.get("expanded_theme") or "").split(" in ")[0].strip()
     style = (theme_context or {}).get("artistic_style", "")
-    theme_section = f"The main theme for this book is: **{main_theme}**. Style: **{style}**. Cover prompts should match this theme and style."
+    theme_section = f"The main theme for this book is: **{main_theme}**. Style: **{style}**. Cover prompts must use the EXACT subject (e.g. 'highland cow' not just 'cow' when theme is 'Highland cows')."
 
     prompt_count = len(prompts)
 
