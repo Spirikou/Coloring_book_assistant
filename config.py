@@ -9,8 +9,12 @@ from pathlib import Path
 from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+
+# Single output root: all workflow outputs live here (designs, packages, publish runs, images).
+# Set CB_OUTPUT_DIR to a Google Drive folder path to sync everything to the cloud.
+# Default: project root (same as before); set to e.g. "output" or a Drive path to use a dedicated folder.
 OUTPUT_DIR = Path(os.getenv("CB_OUTPUT_DIR", str(PROJECT_ROOT)))
-# Use saved_designs at project root for backward compatibility
+
 SAVED_DESIGNS_DIR = OUTPUT_DIR / "saved_designs"
 PINTEREST_PUBLISH_DIR = OUTPUT_DIR / "pinterest_publish"
 GENERATED_IMAGES_DIR = OUTPUT_DIR / "generated_images"
@@ -43,10 +47,10 @@ def _float_env(key: str, default: float) -> float:
 # LLM Temperatures (0.0 = deterministic, 1.0 = more creative)
 # Override via env: CB_CONTENT_MODEL_TEMPERATURE, CB_DESIGN_EVALUATOR_MODEL_TEMPERATURE, etc.
 # -----------------------------------------------------------------------------
-CONTENT_MODEL_TEMPERATURE = _float_env("CB_CONTENT_MODEL_TEMPERATURE", 0.2)
-DESIGN_EVALUATOR_MODEL_TEMPERATURE = _float_env("CB_DESIGN_EVALUATOR_MODEL_TEMPERATURE", 0.2)
+CONTENT_MODEL_TEMPERATURE = _float_env("CB_CONTENT_MODEL_TEMPERATURE", 0.7)
+DESIGN_EVALUATOR_MODEL_TEMPERATURE = _float_env("CB_DESIGN_EVALUATOR_MODEL_TEMPERATURE", 0.3)
 EXECUTOR_MODEL_TEMPERATURE = _float_env("CB_EXECUTOR_MODEL_TEMPERATURE", 0.7)
-IMAGE_EVALUATOR_MODEL_TEMPERATURE = _float_env("CB_IMAGE_EVALUATOR_MODEL_TEMPERATURE", 0.2)
+IMAGE_EVALUATOR_MODEL_TEMPERATURE = _float_env("CB_IMAGE_EVALUATOR_MODEL_TEMPERATURE", 0.3)
 PINTEREST_MODEL_TEMPERATURE = _float_env("CB_PINTEREST_MODEL_TEMPERATURE", 0.7)
 GUIDE_CHAT_MODEL_TEMPERATURE = _float_env("CB_GUIDE_CHAT_MODEL_TEMPERATURE", 0.3)
 

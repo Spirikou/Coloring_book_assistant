@@ -22,6 +22,7 @@ from features.design_generation.tools.content_tools import (
     regenerate_keywords,
 )
 from core.state import ColoringBookState
+from features.design_generation.constants import COVER_DEFAULT_ASPECT_RATIO
 
 load_dotenv()
 
@@ -119,7 +120,11 @@ def executor_node(state: ColoringBookState) -> ColoringBookState:
         # Generate cover prompts
         generation_log.append({"step": "cover_prompts", "message": "Generating cover prompts..."})
         print("   📖 Generating cover prompts...")
-        cover_result = generate_and_refine_cover_prompts.invoke({"description": new_state.get("description", ""), "theme_context": theme_context})
+        cover_result = generate_and_refine_cover_prompts.invoke({
+            "description": new_state.get("description", ""),
+            "theme_context": theme_context,
+            "cover_aspect_ratio": new_state.get("cover_aspect_ratio") or COVER_DEFAULT_ASPECT_RATIO,
+        })
         if isinstance(cover_result, dict) and "final_content" in cover_result:
             new_state["cover_prompts"] = cover_result["final_content"]
             new_state["cover_prompts_attempts"] = cover_result.get("attempts", [])
@@ -396,6 +401,7 @@ def run_coloring_book_agent(user_request: str) -> ColoringBookState:
         "description": "",
         "midjourney_prompts": [],
         "cover_prompts": [],
+        "cover_aspect_ratio": COVER_DEFAULT_ASPECT_RATIO,
         "seo_keywords": [],
         # Attempt history
         "title_attempts": [],
@@ -482,6 +488,7 @@ def run_design_for_concept(concept: dict) -> ColoringBookState:
         "description": "",
         "midjourney_prompts": [],
         "cover_prompts": [],
+        "cover_aspect_ratio": COVER_DEFAULT_ASPECT_RATIO,
         "seo_keywords": [],
         "title_attempts": [],
         "prompts_attempts": [],
@@ -568,6 +575,7 @@ def run_design_step_for_concept(
             "description": "",
             "midjourney_prompts": [],
             "cover_prompts": [],
+            "cover_aspect_ratio": COVER_DEFAULT_ASPECT_RATIO,
             "seo_keywords": [],
             "title_attempts": [],
             "prompts_attempts": [],
@@ -641,9 +649,11 @@ def run_design_step_for_concept(
 
     elif step_name == "cover_prompts":
         generation_log.append({"step": "cover_prompts", "message": "Generating cover prompts..."})
-        cover_result = generate_and_refine_cover_prompts.invoke(
-            {"description": new_state.get("description", ""), "theme_context": theme_context}
-        )
+        cover_result = generate_and_refine_cover_prompts.invoke({
+            "description": new_state.get("description", ""),
+            "theme_context": theme_context,
+            "cover_aspect_ratio": new_state.get("cover_aspect_ratio") or COVER_DEFAULT_ASPECT_RATIO,
+        })
         if isinstance(cover_result, dict) and "final_content" in cover_result:
             new_state["cover_prompts"] = cover_result["final_content"]
             new_state["cover_prompts_attempts"] = cover_result.get("attempts", [])
@@ -745,7 +755,10 @@ def rerun_design_with_modifications(
 
     if "cover_prompts" in regenerate_list:
         print("   📖 Regenerating cover prompts...")
-        result = regenerate_cover_prompts(theme_context, description, custom_instructions)
+        result = regenerate_cover_prompts(
+            theme_context, description, custom_instructions,
+            cover_aspect_ratio=new_state.get("cover_aspect_ratio"),
+        )
         if isinstance(result, dict) and "final_content" in result:
             new_state["cover_prompts"] = result["final_content"]
             new_state["cover_prompts_attempts"] = result.get("attempts", [])

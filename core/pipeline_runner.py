@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from config import get_midjourney_config
+from core.browser_config import check_browser_connection, get_port_for_role
+from core.jobs import create_job, has_running_image_job, update_job_status
 from core.pipeline_templates import PIPELINE_STEPS, get_step_by_id
 
 
@@ -51,6 +53,7 @@ def _run_pipeline_process(
     canva_config = config.get("canva_config", {}) or {}
 
     step_labels = {s["id"]: s["label"] for s in PIPELINE_STEPS}
+    image_job_id: str | None = None
 
     for i, step_id in enumerate(steps):
         shared["current_step_index"] = i
@@ -73,6 +76,22 @@ def _run_pipeline_process(
                 shared["workflow_state"] = _prepare_state_for_serialization(state)
 
             elif step_id == "image":
+                # Enforce global serialization for image generation (Midjourney).
+                if has_running_image_job():
+                    raise RuntimeError(
+                        "Another image generation job is already running. "
+                        "Please wait for it to complete before starting a new pipeline with an Image step."
+                    )
+
+                # Create and mark an image job as running for this design (if known).
+                try:
+                    job = create_job(design_package_path or "", action="image", status="running")
+                    image_job_id = job.id
+                    update_job_status(image_job_id, "running")
+                except Exception:
+                    # Job tracking is best-effort; do not block pipeline if it fails.
+                    image_job_id = None
+
                 if not workflow_state:
                     from core.persistence import load_design_package
                     loaded = load_design_package(design_package_path)
@@ -89,14 +108,16 @@ def _run_pipeline_process(
 
                 cfg = get_midjourney_config()
                 button_coords = cfg.get("button_coordinates", {})
-                browser_port = cfg.get("browser_debug_port", 9222)
+                browser_port = get_port_for_role("midjourney")
                 viewport = cfg.get("viewport") or {"width": 1920, "height": 1080}
                 coord_vp = cfg.get("coordinates_viewport") or {"width": 1920, "height": 1080}
 
-                from integrations.midjourney.automation.browser_utils import check_browser_connection
-                browser_status = check_browser_connection()
+                browser_status = check_browser_connection(browser_port)
                 if not browser_status.get("connected", False):
-                    raise ValueError("Browser not connected. Start browser with --remote-debugging-port=9222")
+                    raise ValueError(
+                        f"Browser not connected for Midjourney (port {browser_port}). "
+                        "Start browser with remote debugging on that port."
+                    )
 
                 from features.image_generation.midjourney_runner import run_automated_process
 
@@ -161,11 +182,14 @@ def _run_pipeline_process(
 
             elif step_id == "canva":
                 from workflows.canva.designer import CanvaDesignWorkflow
-                from integrations.midjourney.automation.browser_utils import check_browser_connection
 
-                browser_status = check_browser_connection()
+                canva_port = get_port_for_role("canva")
+                browser_status = check_browser_connection(canva_port)
                 if not browser_status.get("connected", False):
-                    raise ValueError("Browser not connected. Start browser with --remote-debugging-port=9222")
+                    raise ValueError(
+                        f"Browser not connected for Canva (port {canva_port}). "
+                        "Start browser with remote debugging on that port."
+                    )
 
                 folder = design_package_path
                 workflow = CanvaDesignWorkflow()
@@ -185,11 +209,14 @@ def _run_pipeline_process(
 
             elif step_id == "pinterest":
                 from workflows.pinterest.publisher import PinterestPublishingWorkflow
-                from integrations.midjourney.automation.browser_utils import check_browser_connection
 
-                browser_status = check_browser_connection()
+                pinterest_port = get_port_for_role("pinterest")
+                browser_status = check_browser_connection(pinterest_port)
                 if not browser_status.get("connected", False):
-                    raise ValueError("Browser not connected. Start browser with --remote-debugging-port=9222")
+                    raise ValueError(
+                        f"Browser not connected for Pinterest (port {pinterest_port}). "
+                        "Start browser with remote debugging on that port."
+                    )
 
                 if not board_name:
                     raise ValueError("Pinterest board name is required")
@@ -225,11 +252,24 @@ def _run_pipeline_process(
             shared["workflow_state"] = _prepare_state_for_serialization(workflow_state) if workflow_state else {}
 
         except Exception as e:
+            # Mark image job as failed if applicable.
+            if image_job_id is not None:
+                try:
+                    update_job_status(image_job_id, "failed", str(e))
+                except Exception:
+                    pass
             shared["status"] = "failed"
             shared["error"] = str(e)
             shared["step_status"] = "failed"
             shared["running"] = False
             return
+
+    # Mark image job as completed if applicable.
+    if image_job_id is not None:
+        try:
+            update_job_status(image_job_id, "completed")
+        except Exception:
+            pass
 
     shared["status"] = "completed"
     shared["running"] = False

@@ -38,9 +38,14 @@ class BookConfig:
                 "OPENAI_API_KEY=sk-your-api-key-here"
             )
         
+        # Prefer Pinterest-specific description when present, but fall back to full description.
+        # This lets us keep the full book description separate from the pin description.
+        pin_desc = data.get("pin_description")
+        effective_description = pin_desc if pin_desc not in (None, "") else data.get("description", "")
+ 
         return cls(
-            title=data["title"],
-            description=data["description"],
+            title=data.get("title", ""),
+            description=effective_description,
             seo_keywords=data.get("seo_keywords", []),
             board_name=board_name,
             openai_api_key=api_key,

@@ -17,7 +17,6 @@ except Exception as e:
     print(f"Warning: Could not initialize workflow logger: {e}")
 
 from .pinterest_tool import publish_pinterest_pins_core, PinterestPublishOutput
-from .browser_utils import check_browser_connection
 
 try:
     from .config import PROCESS_TIMEOUT

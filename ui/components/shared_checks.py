@@ -1,8 +1,9 @@
 """Shared system and prerequisites check components for Canva and Pinterest tabs."""
 
 import streamlit as st
+from core.browser_config import check_browser_connection, get_port_for_role
 from integrations.pinterest.antivirus_check import run_full_check
-from integrations.pinterest.browser_utils import check_browser_connection, launch_browser_with_debugging
+from integrations.midjourney.automation.browser_utils import launch_browser_for_port
 
 
 def _render_checks_summary(check_results: dict, prerq: dict) -> None:
@@ -171,8 +172,9 @@ def _render_prerequisites_content(state: dict, tab_name: str, prerq: dict) -> No
         st.success(f"✓ Browser connected on port {port}")
         st.caption("Check: Remote debugging port active. Start browser with: `--remote-debugging-port=9222`")
     else:
+        port = get_port_for_role(tab_name)
         st.warning("Browser not connected. Launch browser with remote debugging, then log in.")
-        st.caption("Check: No browser detected on port 9222. Use Launch Browser or start manually with remote debugging.")
+        st.caption(f"Check: No browser detected on port {port}. Use Launch Browser or start manually with remote debugging.")
         col_a, col_b = st.columns(2)
         with col_a:
             if st.button("Check Browser", key=button_key, use_container_width=True):
@@ -180,7 +182,8 @@ def _render_prerequisites_content(state: dict, tab_name: str, prerq: dict) -> No
                 st.rerun()
             if st.button("Launch Browser", key=launch_key, use_container_width=True):
                 with st.spinner("Launching..."):
-                    result = launch_browser_with_debugging()
+                    port = get_port_for_role(tab_name)
+                    result = launch_browser_for_port(port)
                     if result.get("success"):
                         st.success(result["message"])
                         st.session_state[f"browser_launched_{tab_name}"] = True
@@ -190,7 +193,8 @@ def _render_prerequisites_content(state: dict, tab_name: str, prerq: dict) -> No
         with col_b:
             if st.session_state.get(f"browser_launched_{tab_name}", False):
                 if st.button("Continue", key=f"continue_{tab_name}_btn", use_container_width=True):
-                    bs = check_browser_connection()
+                    port = get_port_for_role(tab_name)
+                    bs = check_browser_connection(port)
                     state[BROWSER_STATUS_KEY] = bs
                     st.session_state.workflow_state = state
                     st.session_state[f"browser_launched_{tab_name}"] = False

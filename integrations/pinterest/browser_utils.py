@@ -1,115 +1,81 @@
-"""Browser connection utilities for Pinterest publishing."""
+"""Browser connection utilities for Pinterest publishing.
 
-import socket
+Connection check delegates to core.browser_config. Use get_port_for_role("pinterest")
+to obtain the port for the Pinterest slot when calling check_browser_connection(port).
+"""
+
 import subprocess
-from typing import Dict, Optional
+from typing import Any, Dict
 
 try:
     from .config import get_browser_startup_command, DEBUG_PORT, BROWSER_TYPE
 except ImportError:
-    # Fallback for absolute import
     from integrations.pinterest.config import get_browser_startup_command, DEBUG_PORT, BROWSER_TYPE
 
+from core.browser_config import check_browser_connection as _core_check_browser_connection
+from core.browser_config import get_port_for_role
 
-def check_browser_connection(port: Optional[int] = None) -> Dict[str, any]:
+
+def check_browser_connection(port: int) -> Dict[str, Any]:
     """
-    Check if browser is running with debugging port.
-    
+    Check if browser is running with debugging port. Delegates to core.
+
     Args:
-        port: Port to check (defaults to DEBUG_PORT from config)
-        
+        port: Port to check (use get_port_for_role("pinterest") for the Pinterest slot).
+
     Returns:
-        dict with: connected (bool), port (int), error (str)
+        dict with: connected (bool), port (int), error (str | None)
     """
-    if port is None:
-        port = DEBUG_PORT
-    
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(1)
-        result = sock.connect_ex(('localhost', port))
-        sock.close()
-        
-        if result == 0:
-            return {
-                "connected": True,
-                "port": port,
-                "error": None
-            }
-        else:
-            return {
-                "connected": False,
-                "port": port,
-                "error": f"Port {port} is not accessible"
-            }
-    except Exception as e:
-        return {
-            "connected": False,
-            "port": port,
-            "error": str(e)
-        }
+    return _core_check_browser_connection(port)
 
 
-def launch_browser_with_debugging() -> Dict[str, any]:
+def launch_browser_with_debugging() -> Dict[str, Any]:
     """
     Automatically launch browser with debugging enabled.
-    
-    Returns:
-        dict with: success (bool), message (str), command (str)
+    Launches on DEBUG_PORT from config; after launch we check that port.
     """
+    import time
+
     try:
         command = get_browser_startup_command()
-        
-        # Launch browser in background using PowerShell
-        process = subprocess.Popen(
+        subprocess.Popen(
             ["powershell", "-Command", command],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            creationflags=subprocess.CREATE_NEW_CONSOLE
+            creationflags=subprocess.CREATE_NEW_CONSOLE,
         )
-        
-        # Wait a moment for browser to start
-        import time
         time.sleep(2)
-        
-        # Check if connection is now available
-        connection_status = check_browser_connection()
-        
+        connection_status = check_browser_connection(DEBUG_PORT)
+
         if connection_status["connected"]:
             return {
                 "success": True,
                 "message": f"Browser launched successfully on port {DEBUG_PORT}",
                 "command": command,
-                "browser_type": BROWSER_TYPE
+                "browser_type": BROWSER_TYPE,
             }
-        else:
-            return {
-                "success": False,
-                "message": f"Browser launched but connection check failed: {connection_status.get('error', 'Unknown error')}",
-                "command": command,
-                "browser_type": BROWSER_TYPE
-            }
+        return {
+            "success": False,
+            "message": f"Browser launched but connection check failed: {connection_status.get('error', 'Unknown error')}",
+            "command": command,
+            "browser_type": BROWSER_TYPE,
+        }
     except Exception as e:
         return {
             "success": False,
             "message": f"Failed to launch browser: {str(e)}",
             "command": None,
-            "browser_type": BROWSER_TYPE
+            "browser_type": BROWSER_TYPE,
         }
 
 
-def get_browser_status() -> Dict[str, any]:
-    """
-    Get current browser connection status.
-    
-    Returns:
-        dict with connection status and browser info
-    """
-    connection_status = check_browser_connection()
-    
+def get_browser_status() -> Dict[str, Any]:
+    """Get current browser connection status for the Pinterest slot."""
+    port = get_port_for_role("pinterest")
+    connection_status = check_browser_connection(port)
     return {
         **connection_status,
         "browser_type": BROWSER_TYPE,
-        "debug_port": DEBUG_PORT
+        "debug_port": port,
     }
 

@@ -1,6 +1,11 @@
-# Cover Prompts & Cover Image Generation — Implementation Plan
+# Cover Prompts & Coloring Book Prompt Improvements — Implementation Plan
 
-This document is a **proposal only**. It describes how to add **cover prompt generation** (design) and a **parallel cover image workflow** (image generation) so that cover prompts are generated and evaluated like inside prompts, and cover images go through the same Publish → Upscale/Vary → Download flow in a dedicated section. **No code is implemented yet.**
+This document describes **cover prompt generation** and the **parallel cover image workflow**, plus the **agreed prompt improvements** from `docs/COLORING_BOOK_PROMPTS_ANALYSIS_AND_RECOMMENDATIONS.md`. It aligns with the following **decided choices**:
+
+- **Inside pages:** aspect ratio **`--ar 1:1`** (unchanged).
+- **Cover:** aspect ratio **`--ar 2:3`** (portrait), **configurable from the UI**.
+- **Seed:** optional **book-level seed** for “same feel” across inside pages (append `--seed <n>` when publishing to Midjourney); for “style from a picture” use style reference (`--sref`) when supported.
+- **Other improvements:** extend `--no` (shading, gradient, shadow, depth), thick outlines, white background, target_audience in prompts, “space for title” on cover, centralize suffixes.
 
 ---
 
@@ -11,9 +16,25 @@ This document is a **proposal only**. It describes how to add **cover prompt gen
 
 ---
 
-## 2. Design Generation
+## 2. Inside-page and global prompt improvements (from analysis)
 
-### 2.1 State and Data Model
+Implement the following in parallel with or before the cover-specific work; see `docs/COLORING_BOOK_PROMPTS_ANALYSIS_AND_RECOMMENDATIONS.md` for full rationale.
+
+- **Aspect ratio:** Keep **`--ar 1:1`** for inside pages (no change).
+- **Extended `--no`:** Use `--no shading, color, gradient, shadow, depth` (or equivalent) in the canonical inside-page suffix so generated prompts produce colorable line art.
+- **Thick outlines + white background:** Add “thick outlines” (or “bold black lines”) and “white background” to the fixed suffix wording in the generator and evaluator.
+- **Target audience in prompts:** Feed `target_audience` from theme_context into the inside-page prompt template so kids get “simple shapes, large spaces” and adults get “intricate details” where appropriate.
+- **Optional seed:** Support an optional book-level seed (e.g. in state or UI); when publishing inside prompts to Midjourney, append `--seed <number>` if set. This supports “same feel” across pages; for “style from a picture” consider `--sref` later.
+- **Centralize suffixes:** Define canonical suffixes (e.g. in `constants.py`) for inside and cover and use them in both generator and evaluator.
+- **Cover AR:** Use **`--ar 2:3`** for cover by default; make cover aspect ratio **configurable from the UI** (see §3.5 Design Generation UI and §4.5 Image Generation UI).
+- **Space for title (cover):** In the cover prompt template, add guidance so some prompts mention an uncluttered area (e.g. top third) for title overlay.
+- **Evaluator sync:** Update evaluator pre-checks and criteria whenever the canonical suffix or parameters change.
+
+---
+
+## 3. Design Generation (cover)
+
+### 3.1 State and Data Model
 
 Extend `ColoringBookState` (and any initial state dicts) with:
 
@@ -27,7 +48,7 @@ Extend `ColoringBookState` (and any initial state dicts) with:
 
 **Files to touch:** `core/state.py`, and every place that builds initial state (e.g. `workflow.py` for concept-based flow, `run_design_step_for_concept`, agent extraction; design_generation UI when creating new state).
 
-### 2.2 Cover Prompt Generator
+### 3.2 Cover Prompt Generator
 
 Add in `features/design_generation/tools/content_tools.py`:
 
@@ -39,7 +60,7 @@ Add in `features/design_generation/tools/content_tools.py`:
     - Include theme + artistic style from `theme_context` (same style as inside pages).
     - Require: `no text`, `no letters`, `no words` (or similar) so the image is title-free.
     - Require: `book cover`, `illustrated`, `rich colors` (or equivalent).
-    - Aspect ratio: **`--ar 2:3`** (portrait cover).
+    - Aspect ratio: **`--ar 2:3`** by default (portrait cover); the actual value must be **configurable from the UI** (e.g. design or image-generation tab: dropdown or field so users can choose 2:3 or another ratio). Generator and evaluator should use a configurable constant or state value for cover AR.
     - **Do not** include: `coloring book page`, `clean and simple line art`, `black and white`, `--no color`.
   - Returns a list of strings (one per prompt).
 
@@ -47,9 +68,9 @@ Add in `features/design_generation/tools/content_tools.py`:
   - Same pattern as `generate_and_refine_prompts`: loop up to `MAX_ATTEMPTS`, call `_generate_cover_prompts_internal`, then **evaluate** with `evaluate_cover_prompts`, use feedback to refine until pass or max attempts.
   - Returns `{"final_content": list[str], "attempts": [...], "passed": bool, "final_score": int}`.
 
-**Constants:** In `features/design_generation/constants.py` (or next to other prompt counts), add e.g. `COVER_PROMPTS_COUNT = 5` (or 3–5 range).
+**Constants:** In `features/design_generation/constants.py`, keep or add `COVER_PROMPTS_COUNT` (current code uses 15). Optionally add `COVER_DEFAULT_ASPECT_RATIO = "2:3"` and read the effective cover AR from app config or UI (so it is configurable from the UI).
 
-### 2.3 Cover Prompts Evaluator
+### 3.3 Cover Prompts Evaluator
 
 Add in `features/design_generation/agents/evaluator.py`:
 
@@ -61,12 +82,12 @@ Add in `features/design_generation/agents/evaluator.py`:
     - **No inside-page wording:** Must **not** contain “coloring book page”, “clean and simple line art”, “black and white”, “--no color”. If present, deduct heavily.
     - **Theme/style consistency:** Same main theme and artistic style as the book (use `theme_context`).
     - **Color:** Prompts should imply **full color** (no “black and white”).
-  - **Pre-checks (like `evaluate_prompts`):** Validate each prompt for required suffixes (`--ar 2:3`), forbidden phrases (inside-page boilerplate), and optionally “no text” presence.
+  - **Pre-checks (like `evaluate_prompts`):** Validate each prompt for the required cover aspect ratio (default `--ar 2:3`, but use the same configurable value as the generator so UI-configurable AR is respected), forbidden phrases (inside-page boilerplate), and optionally “no text” presence.
   - Return shape similar to `evaluate_prompts`: `passed`, `score`, `issues`, `summary`, etc., so the refine loop can consume it.
 
 **Scoring weights:** Either reuse a small block in `SCORING_WEIGHTS` for `"cover_prompts"` or keep logic inline (e.g. 25 format, 25 cover-specific, 25 theme consistency, 25 variety/quality).
 
-### 2.4 Workflow Integration
+### 3.4 Workflow Integration
 
 **Concept-based path** (no agent), in `workflow.py`:
 
@@ -89,7 +110,7 @@ Add in `features/design_generation/agents/evaluator.py`:
 
 - If you have “Regenerate prompts” or “Regenerate all”, add “Regenerate cover prompts” that calls `regenerate_cover_prompts(theme_context, description, ...)` (implement similarly to `regenerate_prompts`), and optionally a “Regenerate all” that also regenerates cover prompts.
 
-### 2.5 Design Generation UI
+### 3.5 Design Generation UI
 
 In `features/design_generation/ui.py`:
 
@@ -99,18 +120,24 @@ In `features/design_generation/ui.py`:
   - Read-only list of `state.get("cover_prompts", [])` with optional filter.
   - **Edit & save:** A text area (one prompt per line) and a button to write back to `state["cover_prompts"]`, and optionally call `_update_design_package_metadata` if a package is loaded.
 - **Download / export:** Include `cover_prompts` in the exported design JSON (and in any “Download design” payload).
+- **Cover aspect ratio (configurable):** Add a control in design or image-generation UI (e.g. dropdown or text field) for cover aspect ratio (default **2:3**). Persist the chosen value in state or config and use it when generating/validating cover prompts and when sending to Midjourney.
 
-### 2.6 Persistence
+### 3.6 Seed and style coherence (optional)
 
-- **`create_design_package` / `save_design_package` / `_update_design_package_metadata`:** Already persist full `state` to `design.json`. Once `cover_prompts` and related fields are in state, they will be saved and loaded automatically.
+- **Seed:** To get “different pictures, same feel” across inside pages, support an **optional book-level seed** (number). If set (e.g. in design or image-generation UI), append `--seed <number>` to each inside-page prompt when publishing to Midjourney. If not set, omit it. The seed fixes the starting noise pattern and can improve consistency of line weight and detail across the book; it does **not** copy “the style of a picture I like”—for that, use **style reference (`--sref`)** when supported in the flow.
+- **Style reference (future):** If Midjourney integration supports `--sref <url>`, consider allowing the user to pass a URL of a generated image they like so new images match that style.
+
+### 3.7 Persistence
+
+- **`create_design_package` / `save_design_package` / `_update_design_package_metadata`:** Already persist full `state` to `design.json`. Once `cover_prompts` and related fields (and optionally `cover_aspect_ratio`, `midjourney_seed`) are in state, they will be saved and loaded automatically.
 - **`load_design_package`:** No change needed; loaded state will include `cover_prompts` if present.
 - **Backward compatibility:** When loading old design packages without `cover_prompts`, treat `cover_prompts` as `[]` and `cover_prompts_status` as `"pending"` (or hidden) so the UI doesn’t break.
 
 ---
 
-## 3. Image Generation
+## 4. Image Generation
 
-### 3.1 Layout and Sections
+### 4.1 Layout and Sections
 
 Keep the existing **inside** workflow as the first section. Add a **second section** below it that **mirrors** the same flow for **cover** only:
 
@@ -126,7 +153,7 @@ Keep the existing **inside** workflow as the first section. Add a **second secti
    - Downloaded images gallery for **cover only** (from a dedicated cover folder, e.g. `output_folder/cover`).  
    - **Separate** session state and process refs so inside and cover never mix: e.g. `mj_cover_status`, `mj_cover_publish_process`, `mj_cover_uxd_*`, `mj_cover_download_*`, and a dedicated **cover output folder**.
 
-### 3.2 Cover Output Folder
+### 4.2 Cover Output Folder
 
 - **Recommendation:** Use a **subfolder** of the same design output folder: e.g. `cover_folder = Path(output_folder) / "cover"`.  
 - When the user is in the Cover section, “Output folder” for cover can be **read-only** or pre-filled as `{current output folder}/cover` so that:
@@ -134,7 +161,7 @@ Keep the existing **inside** workflow as the first section. Add a **second secti
   - Cover images: `output_folder/cover/*.png`
 - This keeps one “design output root” and separates inside vs cover by subfolder, which also simplifies “Save design package” (see below).
 
-### 3.3 Session State for Cover
+### 4.3 Session State for Cover
 
 Duplicate the **inside** Midjourney session state with a **cover** prefix so the two flows are independent:
 
@@ -146,7 +173,7 @@ Duplicate the **inside** Midjourney session state with a **cover** prefix so the
 
 In `_init_mj_session_state()` (or equivalent), initialize all `mj_cover_*` defaults the same way as the inside ones.
 
-### 3.4 Reuse Existing Runners
+### 4.4 Reuse Existing Runners
 
 **Do not duplicate** `run_publish_process`, `run_uxd_action_process`, `run_download_process`, or the automated runner. They already take:
 
@@ -161,7 +188,7 @@ For the **Cover** section, call the **same** functions with:
 
 So the only difference is **which** prompts and **which** folder and **which** session state keys are passed in. No new runner logic.
 
-### 3.5 Image Generation UI Structure (Concrete)
+### 4.5 Image Generation UI Structure (Concrete)
 
 In `features/image_generation/ui.py`, inside `render_image_generation_tab`:
 
@@ -190,7 +217,7 @@ In `features/image_generation/ui.py`, inside `render_image_generation_tab`:
    - So: **one** design package folder; **inside** images at package root; **cover** images in `package/cover`.  
    - Persisted state (design.json) already includes `cover_prompts`; no extra persistence for “which images are cover” beyond folder layout.
 
-### 3.6 Batch Mode (Optional)
+### 4.6 Batch Mode (Optional)
 
 - Current batch mode runs **inside** prompts for multiple designs, each in its own subfolder.  
 - **Recommendation for v1:** Do **not** add batch for cover; cover workflow is **single-design** only. The user selects one design and runs Publish → Upscale/Vary → Download for cover prompts in that design’s (cover) subfolder.  
@@ -198,7 +225,7 @@ In `features/image_generation/ui.py`, inside `render_image_generation_tab`:
 
 ---
 
-## 4. Summary of Files to Touch
+## 5. Summary of Files to Touch
 
 | Area | Files |
 |------|--------|
@@ -214,15 +241,16 @@ In `features/image_generation/ui.py`, inside `render_image_generation_tab`:
 
 ---
 
-## 5. Recommendation and Order of Work
+## 6. Recommendation and Order of Work
 
-1. **State + constants** — Add cover fields and COVER_PROMPTS_COUNT so nothing breaks when missing.  
-2. **Evaluator** — Implement `evaluate_cover_prompts` and cover-specific criteria so the generator has a target.  
-3. **Content tools** — Implement `_generate_cover_prompts_internal` and `generate_and_refine_cover_prompts`.  
-4. **Workflow** — Integrate cover step in concept path (and agent/step-wise if used).  
-5. **Design UI** — Show and edit cover prompts, show score/status.  
-6. **Image Gen UI** — Add cover section and mj_cover_* state; wire same runners with cover prompts and cover folder; add cover gallery; extend Save design to include cover subfolder.  
-7. **Persistence** — Ensure design package save/load handles cover folder and state.  
-8. **Tests** — Unit tests for evaluate_cover_prompts and for cover prompt generation; optional E2E for “generate design → see cover prompts → publish cover → download to cover folder”.
+1. **Inside-page prompt improvements (Section 2)** — Centralize suffixes in constants; extend `--no`, add thick outlines and white background; feed target_audience into inside prompt template; update inside evaluator. Optionally add seed support (state + append when publishing).  
+2. **State + constants** — Add cover fields, COVER_PROMPTS_COUNT, and COVER_DEFAULT_ASPECT_RATIO (or read from config/UI); add optional midjourney_seed and cover_aspect_ratio to state if using UI configurability.  
+3. **Evaluator** — Implement or update `evaluate_cover_prompts` with cover-specific criteria and configurable cover AR; keep inside evaluator in sync with new suffix.  
+4. **Content tools** — Implement/update `_generate_cover_prompts_internal` and `generate_and_refine_cover_prompts` to use `--ar 2:3` (or configurable value); add “space for title” guidance.  
+5. **Workflow** — Integrate cover step in concept path (and agent/step-wise if used).  
+6. **Design UI** — Show and edit cover prompts, score/status; add **cover aspect ratio** control (default 2:3). Optionally add **seed** input for “same feel” on inside pages.  
+7. **Image Gen UI** — Add cover section and mj_cover_* state; wire same runners with cover prompts and cover folder; add cover gallery; add **cover aspect ratio** control if not in design UI; extend Save design to include cover subfolder. When publishing inside prompts, append `--seed <n>` if seed is set.  
+8. **Persistence** — Ensure design package save/load handles cover folder, state, and optional cover_aspect_ratio / midjourney_seed.  
+9. **Tests** — Unit tests for evaluate_cover_prompts and cover prompt generation; optional E2E for “generate design → see cover prompts → publish cover → download to cover folder”.
 
-This keeps **inside** behavior unchanged, adds **cover** as a parallel track with the same capabilities (generate → evaluate → publish → upscale → download → select), and keeps the codebase consistent and maintainable.
+This keeps **inside** aspect ratio at **1:1**, adds **cover** at **2:3** (configurable from UI), optional **seed** for coherence, and aligns with the prompt improvements in `docs/COLORING_BOOK_PROMPTS_ANALYSIS_AND_RECOMMENDATIONS.md` (extend --no, thick outlines, white background, target_audience, space for title, centralized suffixes). The codebase stays consistent and maintainable.

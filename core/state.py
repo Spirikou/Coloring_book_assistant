@@ -23,8 +23,11 @@ class ColoringBookState(TypedDict, total=False):
     # Generated content
     title: str
     description: str
+    # Pinterest-specific description (kept separate from full design description)
+    pinterest_description: str
     midjourney_prompts: list
     cover_prompts: list  # Cover background prompts (no title text)
+    cover_aspect_ratio: str  # e.g. "2:3" (portrait); configurable from UI
     seo_keywords: list
 
     # Per-component attempt history for UI visibility

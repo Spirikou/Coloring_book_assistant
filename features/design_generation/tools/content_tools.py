@@ -19,25 +19,51 @@ from features.design_generation.agents.evaluator import (
     BANNED_AI_WORDS,
     REQUIRED_SECTION,
     MAX_ATTEMPTS,
-    PASS_THRESHOLD
+    PASS_THRESHOLD,
 )
 from features.design_generation.tools.search_tools import web_search
 from features.design_generation.constants import (
     MIN_CONCEPT_VARIATIONS,
     MAX_CONCEPT_VARIATIONS,
     COVER_PROMPTS_COUNT,
+    INSIDE_PAGE_SUFFIX,
+    COVER_DEFAULT_ASPECT_RATIO,
+    COVER_BASE_SUFFIX,
 )
+from config import CONTENT_MODEL
 
 load_dotenv()
 
 
 def get_llm():
-    """Get the language model instance."""
-    from config import CONTENT_MODEL, CONTENT_MODEL_TEMPERATURE
+    """Get the language model instance with default creativity."""
+    from config import CONTENT_MODEL_TEMPERATURE
+
     return ChatOpenAI(
         model=CONTENT_MODEL,
         temperature=CONTENT_MODEL_TEMPERATURE,
-        api_key=os.getenv("OPENAI_API_KEY")
+        api_key=os.getenv("OPENAI_API_KEY"),
+    )
+
+
+def _get_llm_for_creativity(creativity_level: str | None = None) -> ChatOpenAI:
+    """Get an LLM instance tuned for the requested creativity level."""
+    # Fallback to config default if no level provided
+    from config import CONTENT_MODEL_TEMPERATURE
+
+    base_temp = CONTENT_MODEL_TEMPERATURE
+    level = (creativity_level or "medium").lower()
+    if level == "low":
+        temperature = max(0.1, min(0.5, base_temp - 0.3))
+    elif level == "high":
+        temperature = min(1.3, max(0.9, base_temp + 0.3))
+    else:
+        temperature = base_temp
+
+    return ChatOpenAI(
+        model=CONTENT_MODEL,
+        temperature=temperature,
+        api_key=os.getenv("OPENAI_API_KEY"),
     )
 
 
@@ -45,7 +71,11 @@ def get_llm():
 # CONCEPT VARIATIONS (preliminary research - not exposed to executor)
 # =============================================================================
 
-def generate_concept_variations(user_idea: str, num_variations: int = 5) -> list[dict]:
+def generate_concept_variations(
+    user_idea: str,
+    num_variations: int = 5,
+    creativity_level: str | None = None,
+) -> list[dict]:
     """
     Generate N creative variations of the user's idea with different themes and art styles.
     Called directly from UI for preliminary concept research. Not exposed to executor agent.
@@ -53,42 +83,77 @@ def generate_concept_variations(user_idea: str, num_variations: int = 5) -> list
     Args:
         user_idea: The user's initial idea (e.g., "dog", "forest animals").
         num_variations: Number of variations to generate (5-10, default 5).
+        creativity_level: Optional creativity level ("low", "medium", "high").
 
     Returns:
         List of N dicts, each with id, theme_concept, art_style, style_description,
         unique_angle, and mixable_components (theme, style).
     """
-    num_variations = max(MIN_CONCEPT_VARIATIONS, min(MAX_CONCEPT_VARIATIONS, num_variations))
+    num_variations = max(
+        MIN_CONCEPT_VARIATIONS,
+        min(MAX_CONCEPT_VARIATIONS, num_variations),
+    )
 
-    llm = get_llm()
-    prompt = ChatPromptTemplate.from_template("""
-You are a creative director for a coloring book publishing company. Generate {num_variations} DISTINCT and CREATIVE variations of this idea for coloring books.
+    level = (creativity_level or "medium").lower()
+    if level == "low":
+        creativity_instructions = """
+## CREATIVITY LEVEL: LOW (safer, classic ideas)
+- Stay close to familiar, classic coloring book themes.
+- Avoid unusual or surreal combinations.
+- Focus on clearly recognizable, broadly appealing ideas.
+"""
+    elif level == "high":
+        creativity_instructions = """
+## CREATIVITY LEVEL: HIGH (bold, playful ideas)
+- Prioritize surprising, playful twists and unexpected combinations.
+- Each variation should include at least one unusual angle or setting,
+  while still being kid-friendly and non-creepy.
+- Avoid generic, overused concepts.
+"""
+    else:
+        creativity_instructions = """
+## CREATIVITY LEVEL: MEDIUM (balanced)
+- Add some fresh twists or unusual angles to the idea,
+  but keep each concept coherent and approachable.
+- Avoid both boring clichés and anything too weird or unsettling.
+"""
+
+    llm = _get_llm_for_creativity(level)
+    prompt = ChatPromptTemplate.from_template(
+        """
+You are a creative director for a coloring book publishing company. Generate {num_variations} distinct, marketable variations of this idea for coloring books.
 
 ## USER'S IDEA:
 {user_idea}
 
 ## YOUR TASK:
-Create exactly {num_variations} variations. Each variation must be UNIQUE and DIFFERENT from the others.
-- Include 2-3 THEME TWISTS (e.g., "dogs in space", "hairy dogs", "underwater dogs")
-- Include 2-3 ART STYLE suggestions (e.g., "Asian ink wash", "Pop manga", "Art Nouveau")
-- Mix theme twists and art styles across the variations
-- Be creative and diverse - avoid near-duplicates
-- Each variation should feel like a distinct coloring book concept
+Create exactly {num_variations} variations. Each variation should be clearly different from the others.
+- Give each variation one clear theme focus (e.g., "dogs at the beach", "dogs with flowers")
+- Suggest one clear art style per variation (e.g., "Asian ink wash", "Art Nouveau", "simple line art")
+- Mix theme and style across variations so they feel distinct but approachable
+{creativity_instructions}
+- Each variation should feel like a coherent, well-defined coloring book concept.
 
 ## RESPONSE FORMAT (JSON array with exactly {num_variations} objects):
 [
   {{
-    "theme_concept": "Creative theme twist (e.g., dogs in space)",
-    "art_style": "Art style name (e.g., Asian ink wash, Pop manga)",
+    "theme_concept": "Clear theme (e.g., dogs at the beach)",
+    "art_style": "Art style name (e.g., Asian ink wash, Art Nouveau)",
     "style_description": "1-2 sentences describing this style for coloring books",
-    "unique_angle": "What makes this concept special and marketable"
+    "unique_angle": "What makes this concept appealing and marketable"
   }},
   ... ({num_variations} total)
 ]
 
 Return ONLY the JSON array, no other text.""")
     chain = prompt | llm | StrOutputParser()
-    result = chain.invoke({"user_idea": user_idea, "num_variations": num_variations})
+    result = chain.invoke(
+        {
+            "user_idea": user_idea,
+            "num_variations": num_variations,
+            "creativity_instructions": creativity_instructions,
+        }
+    )
     try:
         result = result.strip()
         if result.startswith("```json"):
@@ -167,7 +232,7 @@ IMPORTANT - Previous theme expansion had issues. Address these:
     artist_context = style_research.get("artist_research", "")
     
     prompt = ChatPromptTemplate.from_template("""
-You are a creative director for a coloring book publishing company. Your job is to craft a UNIQUE theme and select the PERFECT artistic style.
+You are a creative director for a coloring book publishing company. Your job is to define a clear theme and choose a fitting artistic style.
 
 ## USER'S THEME IDEA:
 {user_input}
@@ -180,26 +245,26 @@ You are a creative director for a coloring book publishing company. Your job is 
 {feedback_section}
 
 ## YOUR TASK:
-Create a unique creative concept by pairing the theme with the ideal artistic style and a signature artist inspiration.
+Define a coherent concept by pairing the theme with a suitable artistic style and a signature artist inspiration. Keep the concept approachable and marketable.
 
 ## ARTISTIC STYLES TO CONSIDER:
-1. **Mandala/Zentangle** - Intricate circular patterns, meditative ( for example Johanna Basford style)
-2. **Art Nouveau** - Flowing organic lines, botanical, elegant curves ( for example Alphonse Mucha inspired)
-3. **Hyperdetailed/Morphia** - Complex transformations, hidden elements (for example Kerby Rosanes style)
-4. **Geometric/Sacred Geometry** - Mathematical patterns, symmetry
-5. **Vintage/Retro** - Old-fashioned charm, nostalgic elements
-6. **Folk Art** - Cultural patterns, traditional motifs
-7. **Kawaii/Cute/Chibby** - Japanese cute style, round shapes, adorable characters
-8. **Gothic/Dark Fantasy** - Dramatic, mysterious, detailed darkness
-9. **Botanical/Scientific** - Precise plant illustrations, nature studies
-10. **Fantasy** - Dreamy, imaginative, fairy-tale elements
+1. **Mandala/Zentangle** - Intricate circular patterns, meditative (e.g. Johanna Basford style)
+2. **Art Nouveau** - Flowing organic lines, botanical, elegant curves (e.g. Alphonse Mucha inspired)
+3. **Geometric/Sacred Geometry** - Mathematical patterns, symmetry
+4. **Vintage/Retro** - Old-fashioned charm, nostalgic elements
+5. **Folk Art** - Cultural patterns, traditional motifs
+6. **Kawaii/Cute** - Japanese cute style, round shapes, adorable characters
+7. **Botanical/Scientific** - Precise plant illustrations, nature studies
+8. **Simple line art** - Clean outlines, beginner-friendly
+9. **Detailed/Intricate** - More complexity (e.g. Kerby Rosanes style)
+10. **Fantasy** - Dreamy, fairy-tale elements (keep approachable)
 
 ## REQUIREMENTS:
-1. **Match Theme to Style**: Which artistic style BEST complements this theme?
-2. **Find Signature Artist**: Who is the most famous artist in this style for coloring books?
-3. **Create Unique Angle**: How can we make this stand out from existing books?
-4. **Define Visual Language**: What specific visual elements define this style?
-5. **No Color Terms**: visual_elements and style_keywords must describe form, line, pattern, and composition only. NEVER include color words (red, blue, vibrant, pastel, etc.) - these are black and white coloring pages.
+1. **Match theme to style**: Which artistic style fits this theme well?
+2. **Find signature artist**: Who is a well-known artist in this style for coloring books?
+3. **Define the angle**: What makes this concept appealing and coherent?
+4. **Define visual language**: What specific visual elements define this style (form, line, pattern only)?
+5. **No color terms**: visual_elements and style_keywords must describe form, line, pattern, and composition only. NEVER include color words (red, blue, vibrant, pastel, etc.) - these are black and white coloring pages.
 
 ## RESPONSE FORMAT (JSON only):
 {{
@@ -210,7 +275,7 @@ Create a unique creative concept by pairing the theme with the ideal artistic st
     "signature_artist": "The most famous coloring book artist in this style",
     "artist_books": "Famous coloring books by this artist",
     "why_this_style": "Why this style is perfect for this theme",
-    "unique_angle": "What makes this concept unique and special",
+    "unique_angle": "What makes this concept appealing and coherent",
     "target_audience": "Who will love this book and why",
     "difficulty_level": "beginner|intermediate|advanced",
     "visual_elements": ["specific", "visual", "elements", "to", "include"],
@@ -329,7 +394,7 @@ def expand_and_research_theme(user_input: str) -> dict:
         feedback += f"Theme: {best_theme.get('expanded_theme', '')[:100]}...\n"
         feedback += f"Artistic Style: {best_theme.get('artistic_style', '')}\n"
         feedback += f"Signature Artist: {best_theme.get('signature_artist', '')}\n"
-        feedback += f"Unique Angle: {best_theme.get('unique_angle', '')[:100]}..."
+        feedback += f"Angle: {best_theme.get('unique_angle', '')[:100]}..."
     
     # Return BEST attempt if none passed
     print(f"      ❌ Max attempts reached. Using best attempt (score: {best_score})")
@@ -373,20 +438,20 @@ Apply these instructions while generating the title and description!
     theme_section = ""
     if theme_context:
         theme_section = f"""
-## CREATIVE DIRECTION (from theme development):
+## THEME DIRECTION (from theme development):
 - **Theme**: {theme_context.get('expanded_theme', user_input)}
 - **Artistic Style**: {theme_context.get('artistic_style', 'Not specified')}
 - **Signature Artist Inspiration**: {theme_context.get('signature_artist', 'Not specified')}
-- **Unique Angle**: {theme_context.get('unique_angle', 'Not specified')}
+- **Angle**: {theme_context.get('unique_angle', 'Not specified')}
 - **Target Audience**: {theme_context.get('target_audience', 'Adults')}
 - **Style Keywords**: {', '.join(theme_context.get('style_keywords', []))}
 - **Mood**: {', '.join(theme_context.get('mood', []))}
 
-USE THIS CREATIVE DIRECTION to craft the title and description!
+Use this direction to craft the title and description.
 """
     
     prompt = ChatPromptTemplate.from_template("""
-You are a professional coloring book designer and marketing expert. Create a title and description that captures the unique creative vision.
+You are a professional coloring book designer and marketing expert. Create a title and description that are clear, marketable, and aligned with the theme.
 
 ## USER'S ORIGINAL REQUEST:
 {user_input}
@@ -402,18 +467,18 @@ You are a professional coloring book designer and marketing expert. Create a tit
 
 ## TITLE REQUIREMENTS:
 - MAXIMUM 60 characters (count carefully!)
-- Reflect the ARTISTIC STYLE and UNIQUE ANGLE
-- Include the signature artist's style influence if relevant (e.g., "Zentangle-Style", "Art Nouveau")
-- Make it stand out - NOT generic like "Beautiful Coloring Book"
-- Include searchable keywords naturally
+- Reflect the artistic style and theme clearly
+- Include style influence if relevant (e.g., "Zentangle-Style", "Art Nouveau")
+- Be specific and searchable, but avoid generic phrases like "Beautiful Coloring Book"
+- Include relevant keywords naturally
 
 ## DESCRIPTION REQUIREMENTS:
 - Approximately 180-220 words
-- Highlight the ARTISTIC STYLE prominently
-- Mention the style inspiration/artist influence
+- Describe the artistic style and what's in the book
+- Mention the style inspiration/artist influence where relevant
 - Write like a real Amazon seller, not an AI (avoid AI words)
-- Include specific details about what's in the book
-- Match the MOOD from the theme
+- Include specific details about the content
+- Match the mood from the theme
 
 ## CRITICAL - MUST INCLUDE THIS EXACT SECTION AT THE END:
 
@@ -487,14 +552,12 @@ Apply these instructions when creating the prompts!
     main_theme_section = ""
     if main_theme:
         main_theme_section = f"""
-## MAIN THEME (PRIMARY — MUST APPLY TO EVERY PROMPT):
+## MAIN THEME (primary — apply to every prompt):
 **{main_theme}**
 
-- Every prompt MUST be clearly about this subject. The artistic style is how it is drawn, not what it is.
-- Use the EXACT main theme subject in every prompt—do NOT generalize or broaden the subject.
-  - Example: if main theme is "Highland cows", every prompt must include "highland cow" or "Highland cows", NOT just "cow".
-  - Example: if main theme is "Fae Highland Cows", use "highland cow" / "Highland cow" / "fae highland cow", NOT generic "cow".
-- Every prompt should feature {main_theme} or the exact subject (e.g. highland cow, Highland cows) in the opening keywords—never a generic or shortened form that loses the specific theme.
+- Every prompt should be clearly about this subject. The artistic style is how it is drawn, not what it is.
+- Use the exact main theme subject in every prompt (e.g. "highland cow" not "cow" when theme is Highland cows).
+- Open each prompt with the subject; keep the rest of the keywords few and clear.
 """
 
     # Build artistic style guidance (secondary: how it looks)
@@ -514,43 +577,44 @@ Apply these instructions when creating the prompts!
 - **Visual Elements**: {', '.join(visual_elements)}
 - **Page Ideas**: {', '.join(page_ideas)}
 
-EVERY prompt should reflect this artistic style in the keywords, but the SUBJECT must always tie back to the MAIN THEME above.
+Every prompt should reflect this style briefly; the subject must always tie back to the main theme above.
+"""
+    
+    # Target audience: adults — intricate details, detailed patterns, adult coloring
+    audience_section = """
+## TARGET AUDIENCE: ADULTS
+- Design for adult colorists: use intricate details, detailed patterns, and adult coloring style.
+- Keywords can suggest complexity where it fits the theme (e.g. "detailed feathers", "ornate border", "intricate mandala").
+- Keep the same 2–4 keyword rule; only the style/context part is audience-aware.
 """
     
     prompt = ChatPromptTemplate.from_template("""
-You are an expert at creating MidJourney prompts for coloring book designs in a SPECIFIC artistic style.
+You are an expert at creating MidJourney prompts for coloring book designs in a specific artistic style.
 
 ## BOOK DESCRIPTION:
 {description}
 {main_theme_section}
 {style_section}
+{audience_section}
 {custom_section}
 {feedback_section}
 
-## PROMPT FORMAT:
-Create approximately 50 prompts (target 48–55). Each prompt MUST follow this EXACT format:
+## PROMPT FORMAT — KEEP PROMPTS LEAN:
+Create approximately 50 prompts (target 48–55). Each prompt must be SHORT: subject + 2–4 style/context keywords + fixed suffix. Do NOT stack many keywords; fewer, clear keywords work better.
 
-"[subject], [style keywords], [details], [art style], coloring book page, clean and simple line art, black and white --no color --ar 1:1"
+Format: "[subject], [2-4 style or context keywords], {inside_suffix}"
 
 ## CRITICAL RULES:
-1. Approximately 50 prompts (e.g. 48–55); quality and theme consistency matter more than exact count.
-2. Keywords ONLY - NO sentences or phrases
-3. Each keyword is 1-3 words max
-4. MUST include "coloring book page" in every prompt
-5. MUST include "clean and simple line art" in every prompt
-6. MUST include "black and white" in every prompt
-7. MUST end with "--no color --ar 1:1"
-8. EVERY prompt must center on the MAIN THEME (primary subject) when specified above; do not drift into generic style-only prompts.
-9. EVERY prompt must include the ARTISTIC STYLE in the keywords (how it's drawn).
-10. NEVER include color-related keywords - these are black and white line art pages. Banned: red, blue, green, yellow, orange, purple, pink, vibrant, colorful, colourful, pastel, hue, multicolored, rainbow, golden, silver, crimson, azure, etc.
+1. Approximately 50 prompts (48–55); each prompt must be UNIQUE in subject or composition but CONCISE.
+2. Keywords ONLY - no sentences. Each keyword 1-3 words max.
+3. Use only 2–4 style/context keywords per prompt (e.g. one border type, one pose, one detail). Avoid long lists.
+4. Every prompt MUST end with this exact suffix: "{inside_suffix}"
+5. Every prompt must center on the main theme (primary subject) when specified; use the exact subject wording (e.g. "highland cow" not "cow" when theme is Highland cows).
+6. Every prompt must hint at the artistic style in 1–2 keywords only.
+7. NEVER include color-related keywords (red, blue, vibrant, pastel, etc.) — black and white line art only.
 
-## GOOD (exact main theme + style): Highland cow, Celtic knot border, floral wreath, coloring book page, clean and simple line art, black and white --no color --ar 1:1
-## BAD (generic subject when theme is specific): cow, Celtic knot border... — use "highland cow" when main theme is "Highland cows", not "cow"
-## BAD (style only, no main theme): Celtic knot, mandala, decorative border, coloring book page... — missing the main subject
-
-## BAD PROMPTS (DO NOT DO THIS):
-"A beautiful owl sitting majestically in an enchanted forest" - TOO WORDY, uses banned words, no style keywords
-"owl, vibrant feathers, red flowers, blue sky, coloring book page..." - CONTAINS COLOR WORDS (vibrant, red, blue) - forbidden for black and white line art
+## GOOD (concise, clear): highland cow, Celtic knot border, floral wreath, {inside_suffix}
+## BAD (too many keywords): Myth and folklore bunnies, Ink wash sumi-e, Folk art patterning, Mythological fresco, style-inspired artist, moon deity pose, crescent moon halo, decorative border, textured plaster layers, meditative composition, coloring book page... — far too long; trim to subject + 2–4 style terms.
 
 Return a JSON array with approximately 50 prompts. No markdown, just the array.""")
 
@@ -559,8 +623,10 @@ Return a JSON array with approximately 50 prompts. No markdown, just the array."
         "description": description,
         "main_theme_section": main_theme_section,
         "style_section": style_section,
+        "audience_section": audience_section,
         "custom_section": custom_section,
-        "feedback_section": feedback_section
+        "feedback_section": feedback_section,
+        "inside_suffix": INSIDE_PAGE_SUFFIX,
     })
     
     try:
@@ -581,9 +647,12 @@ def _generate_cover_prompts_internal(
     feedback: str = "",
     theme_context: dict = None,
     custom_instructions: str = "",
+    cover_aspect_ratio: str = None,
 ) -> list:
     """Internal function to generate MidJourney prompts for book cover backgrounds (full color, no text)."""
     llm = get_llm()
+    cover_ar = (cover_aspect_ratio or COVER_DEFAULT_ASPECT_RATIO).strip()
+    cover_suffix = f"{COVER_BASE_SUFFIX} --ar {cover_ar}"
 
     feedback_section = ""
     if feedback:
@@ -631,22 +700,25 @@ You are an expert at creating MidJourney prompts for BOOK COVER BACKGROUND image
 {custom_section}
 {feedback_section}
 
-## PROMPT FORMAT:
-Create exactly {cover_count} prompts. Each prompt MUST follow this format:
+## PROMPT FORMAT — KEEP PROMPTS LEAN:
+Create exactly {cover_count} prompts. Each prompt: subject + 2–3 style/context keywords + required suffix. Do not stack many keywords.
 
-"[theme/subject], [style keywords], book cover, [details], rich colors, illustrated, no text, no letters, no words --ar 2:1"
+Format: "[theme/subject], [2-3 style keywords], {cover_suffix}"
+
+## SPACE FOR TITLE (important):
+- At least 3–5 of the prompts should mention an uncluttered area for title overlay, e.g. "upper third uncluttered for title", "space for title at top", "decorative frame with clear area for text", or "ornate border with empty banner at top". This helps the user add the book title in Canva later.
 
 ## CRITICAL RULES:
-1. EXACTLY {cover_count} prompts.
-2. Keywords ONLY - NO sentences.
+1. EXACTLY {cover_count} prompts; each unique but concise.
+2. Keywords ONLY - no sentences. Use only 2–3 style/context keywords per prompt.
 3. MUST include "book cover" or "cover art" or "cover design" in every prompt.
 4. MUST include "no text" or "no words" or "no letters" so the image has no title/text.
-5. MUST end with "--ar 2:1" (landscape book cover ratio).
+5. MUST end with "--ar {cover_ar}" (book cover ratio).
 6. MUST imply full color (e.g. "rich colors", "illustrated", "full color"). Do NOT use "black and white" or "--no color".
 7. Do NOT include: "coloring book page", "clean and simple line art", "black and white" — those are for inside pages only.
 8. Match the book theme and artistic style above so the cover fits the inside pages.
 
-## GOOD: forest animals, art nouveau border, book cover, decorative frame, rich colors, illustrated, no text --ar 2:1
+## GOOD: forest animals, art nouveau border, upper third uncluttered for title, book cover, decorative frame, rich colors, illustrated, no text --ar {cover_ar}
 ## BAD: owl, coloring book page, clean and simple line art, black and white --no color --ar 1:1 (that is for inside pages)
 
 Return a JSON array with exactly {cover_count} prompts. No markdown, just the array.""")
@@ -658,6 +730,8 @@ Return a JSON array with exactly {cover_count} prompts. No markdown, just the ar
         "custom_section": custom_section,
         "feedback_section": feedback_section,
         "cover_count": COVER_PROMPTS_COUNT,
+        "cover_suffix": cover_suffix,
+        "cover_ar": cover_ar,
     })
 
     try:
@@ -708,11 +782,11 @@ Apply these instructions when selecting keywords!
 ## THEME & STYLE CONTEXT:
 - **Artistic Style**: {artistic_style}
 - **Artist Inspiration**: {signature_artist}
-- **Unique Angle**: {unique_angle}
+- **Angle**: {unique_angle}
 - **Target Audience**: {target_audience}
 - **Style Keywords**: {', '.join(style_keywords)}
 
-Include keywords that capture both the THEME and the ARTISTIC STYLE!
+Include keywords that capture the theme and artistic style.
 """
     
     prompt = ChatPromptTemplate.from_template("""
@@ -725,7 +799,7 @@ You are an SEO expert specializing in coloring book marketing on Amazon.
 {feedback_section}
 
 ## TASK:
-Generate EXACTLY 10 SEO keywords that capture both the THEME and ARTISTIC STYLE.
+Generate EXACTLY 10 SEO keywords that capture the theme and artistic style.
 
 ## REQUIREMENTS:
 1. EXACTLY 10 keywords (not 9, not 11)
@@ -943,7 +1017,12 @@ def generate_and_refine_prompts(description: str, theme_context: dict = None, cu
 
 
 @tool
-def generate_and_refine_cover_prompts(description: str, theme_context: dict = None, custom_instructions: str = "") -> dict:
+def generate_and_refine_cover_prompts(
+    description: str,
+    theme_context: dict = None,
+    custom_instructions: str = "",
+    cover_aspect_ratio: str = None,
+) -> dict:
     """
     Generate and refine MidJourney prompts for book cover backgrounds (full color, no title text).
     Uses theme context so cover matches the inside pages. Attempts up to 5 times until quality passes.
@@ -952,6 +1031,7 @@ def generate_and_refine_cover_prompts(description: str, theme_context: dict = No
         description: The coloring book description to base cover prompts on.
         theme_context: Optional dict with artistic_style, style_keywords, visual_elements, etc.
         custom_instructions: Optional free text (e.g. "space for title at top").
+        cover_aspect_ratio: Optional aspect ratio for cover (e.g. "2:3"). Default from constants.
 
     Returns:
         Dictionary with final_content (list of cover prompts) and attempts history.
@@ -960,12 +1040,17 @@ def generate_and_refine_cover_prompts(description: str, theme_context: dict = No
     feedback = ""
     best_attempt = None
     best_score = -1
+    cover_ar = cover_aspect_ratio or (theme_context.get("cover_aspect_ratio") if theme_context else None) or COVER_DEFAULT_ASPECT_RATIO
 
     for attempt_num in range(1, MAX_ATTEMPTS + 1):
         print(f"   📖 Cover Prompts - Attempt {attempt_num}/{MAX_ATTEMPTS}")
 
-        prompts = _generate_cover_prompts_internal(description, feedback, theme_context, custom_instructions)
-        evaluation = evaluate_cover_prompts(prompts, theme_context=theme_context)
+        prompts = _generate_cover_prompts_internal(
+            description, feedback, theme_context, custom_instructions, cover_aspect_ratio=cover_ar
+        )
+        evaluation = evaluate_cover_prompts(
+            prompts, theme_context=theme_context, cover_aspect_ratio=cover_ar
+        )
 
         score = evaluation.get("score", 0)
         attempt_record = {
@@ -1192,7 +1277,12 @@ def regenerate_prompts(theme_context: dict, description: str, custom_instruction
     })
 
 
-def regenerate_cover_prompts(theme_context: dict, description: str, custom_instructions: str = "") -> dict:
+def regenerate_cover_prompts(
+    theme_context: dict,
+    description: str,
+    custom_instructions: str = "",
+    cover_aspect_ratio: str = None,
+) -> dict:
     """
     Regenerate cover prompts. Returns dict with final_content and attempts.
     """
@@ -1200,6 +1290,7 @@ def regenerate_cover_prompts(theme_context: dict, description: str, custom_instr
         "description": description,
         "theme_context": theme_context,
         "custom_instructions": custom_instructions,
+        "cover_aspect_ratio": cover_aspect_ratio,
     })
 
 

@@ -9,6 +9,11 @@ Run with: uv run python main.py
 """
 
 import sys
+from dotenv import load_dotenv
+
+# Load environment variables so CB_OUTPUT_DIR and API keys are available
+load_dotenv()
+
 from features.design_generation.workflow import run_coloring_book_agent
 
 

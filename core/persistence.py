@@ -205,19 +205,24 @@ def load_pinterest_config() -> Optional[Dict]:
 def save_preview_to_images_folder(
     images_folder: str,
     title: str,
-    description: str,
+    pin_description: str,
+    full_description: Optional[str] = None,
     seo_keywords: Optional[List[str]] = None,
 ) -> bool:
     """
-    Save preview modifications (title, description) to book_config.json in the images folder.
-    Use this to persist edits before publishing so they survive app restarts.
-
+    Save preview modifications to book_config.json in the images folder.
+ 
+    This keeps the **pin description** separate from the full design description:
+    - `description` in JSON remains the full design description
+    - `pin_description` is used specifically for Pinterest pins
+ 
     Args:
         images_folder: Path to folder containing images
         title: Pin title
-        description: Pin description
+        pin_description: Pinterest pin description (what user edits in Pinterest tab)
+        full_description: Optional full design description. If omitted, preserves existing.
         seo_keywords: Optional list of SEO keywords (preserves existing if None)
-
+ 
     Returns:
         True if saved successfully
     """
@@ -226,17 +231,26 @@ def save_preview_to_images_folder(
         if not path.exists() or not path.is_dir():
             return False
         config_file = path / BOOK_CONFIG_FILE
-        # Load existing to preserve seo_keywords if not provided
-        existing = {}
+        # Load existing to preserve fields we don't explicitly override
+        existing: Dict = {}
         if config_file.exists():
             try:
                 with open(config_file, "r", encoding="utf-8") as f:
                     existing = json.load(f)
             except Exception:
-                pass
-        config = {
-            "title": title or "",
-            "description": description or "",
+                existing = {}
+        # Decide which description to keep as the full design description
+        if full_description is None:
+            full_description_value = existing.get("description", "")
+        else:
+            full_description_value = full_description or ""
+        # Build config, preserving unspecified fields
+        config: Dict = {
+            "title": title or existing.get("title", ""),
+            # Keep full design description here
+            "description": full_description_value,
+            # Pinterest-specific description (what Pinterest publisher will use)
+            "pin_description": pin_description or existing.get("pin_description", full_description_value),
             "seo_keywords": seo_keywords if seo_keywords is not None else existing.get("seo_keywords", []),
         }
         with open(config_file, "w", encoding="utf-8") as f:
@@ -487,9 +501,14 @@ def save_design_package(
     # Write book_config.json for Pinterest
     book_config = {
         "title": state.get("title", ""),
+        # Full design description
         "description": state.get("description", ""),
-        "seo_keywords": state.get("seo_keywords", [])
+        "seo_keywords": state.get("seo_keywords", []),
     }
+    # Optionally persist a Pinterest-specific description if present in state
+    pin_desc = state.get("pinterest_description") or state.get("pin_description")
+    if pin_desc:
+        book_config["pin_description"] = pin_desc
     with open(pkg / BOOK_CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(book_config, f, indent=2, ensure_ascii=False)
     return str(pkg.resolve())
@@ -507,9 +526,13 @@ def _update_design_package_metadata(state: dict, package_path: str | Path) -> No
         json.dump(state_to_save, f, indent=2, ensure_ascii=False, default=str)
     book_config = {
         "title": state.get("title", ""),
+        # Full design description
         "description": state.get("description", ""),
-        "seo_keywords": state.get("seo_keywords", [])
+        "seo_keywords": state.get("seo_keywords", []),
     }
+    pin_desc = state.get("pinterest_description") or state.get("pin_description")
+    if pin_desc:
+        book_config["pin_description"] = pin_desc
     with open(pkg / BOOK_CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(book_config, f, indent=2, ensure_ascii=False)
 

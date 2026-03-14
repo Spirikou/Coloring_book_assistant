@@ -102,3 +102,13 @@ def get_browser_startup_command() -> str:
     browser_path = get_browser_path()
     user_data_dir = get_browser_automation_user_data_dir()
     return f'& "{browser_path}" --remote-debugging-port={DEBUG_PORT} --user-data-dir="{user_data_dir}" --profile-directory={BROWSER_PROFILE}'
+
+
+def get_browser_startup_command_for_port(port: int) -> str:
+    """Get the PowerShell command to start the browser on a given port.
+    Uses a port-specific user data dir so multiple instances can run (e.g. one per slot).
+    """
+    browser_path = get_browser_path()
+    base_dir = get_browser_automation_user_data_dir()
+    user_data_dir = f"{base_dir}-{port}"
+    return f'& "{browser_path}" --remote-debugging-port={port} --user-data-dir="{user_data_dir}" --profile-directory={BROWSER_PROFILE}'

@@ -95,8 +95,8 @@ Read the guide and workflow overview in the first tab.
 
 ## ⚙️ Configuration
 
-- **Output folder** – Default: `./output/`. Set `CB_OUTPUT_DIR` to customize.
-- **Generated images** – Default: `./output/generated_images/`. Change in the Image Generation tab or in `config.py`.
+- **Output folder** – All workflow outputs (designs, packages, publish runs, images) live under one root. Default: project root. Set **`CB_OUTPUT_DIR`** to a path (e.g. `output` or a Google Drive folder) to collate everything in one place and optionally sync to the cloud.
+- **Generated images** – Default: `OUTPUT_DIR/generated_images/`. Override in the Image Generation tab or `config.py`.
 - **Midjourney** – Button coordinates and timing are in `config.py`. If you use a different screen resolution, run `uv run midjourney-agent setup` to record new coordinates.
 
 ## 📁 Project Structure
@@ -118,10 +118,11 @@ Coloring_book_assistant/
 │   ├── pinterest/        # Pinterest browser automation
 │   └── midjourney/       # Midjourney web automation (Playwright)
 ├── ui/tabs/              # Streamlit tabs (Guide, Canva, Pinterest)
-├── output/               # Output root (configurable via CB_OUTPUT_DIR)
-│   ├── saved_designs/    # Saved design JSON files
-│   ├── generated_images/ # Midjourney-generated images
-│   └── pinterest_publish/# Pinterest publish folders
+├── output/                    # Output root (set CB_OUTPUT_DIR; default: project root)
+│   ├── saved_designs/        # Workflow state JSONs, pipeline_templates
+│   ├── saved_design_packages/# Design packages (design.json, images, etc.)
+│   ├── generated_images/     # Midjourney-generated images
+│   └── pinterest_publish/    # Pinterest config and publish session folders
 ├── docs/                 # Project documentation
 └── utils/                # Compatibility shims
 ```

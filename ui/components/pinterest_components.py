@@ -184,9 +184,12 @@ def render_preview_section(state: dict, images_folder: str) -> dict:
         max_chars=100,
     )
 
+    # Pin description: keep separate from the full design description.
+    # Default to dedicated Pinterest description if present, otherwise fall back to the main description.
+    pin_description_default = state.get("pinterest_description", state.get("description", ""))
     description = st.text_area(
         "Pin description",
-        value=state.get("description", ""),
+        value=pin_description_default,
         key="pinterest_preview_description",
         help="Description for all pins (max 600 chars recommended)",
         height=150,
@@ -199,14 +202,17 @@ def render_preview_section(state: dict, images_folder: str) -> dict:
             key="pinterest_save_modifications_btn",
             help="Save title and description to the images folder before publishing. Changes persist across sessions.",
         ):
+            full_description = state.get("description", "")
             if save_preview_to_images_folder(
-                images_folder,
-                title,
-                description,
+                images_folder=images_folder,
+                title=title,
+                pin_description=description,
+                full_description=full_description,
                 seo_keywords=state.get("seo_keywords"),
             ):
                 state["title"] = title
-                state["description"] = description
+                # Persist Pinterest-specific description without overwriting full design description
+                state["pinterest_description"] = description
                 if "workflow_state" in st.session_state:
                     st.session_state.workflow_state = state
                 st.success("Modifications saved to the images folder.")
@@ -272,6 +278,7 @@ def render_preview_section(state: dict, images_folder: str) -> dict:
 
     return {
         "title": title,
+        # Return the pin-specific description to use for publishing
         "description": description,
         "selected_images": to_publish,
     }

@@ -5,6 +5,7 @@ import json
 import re
 from typing import Dict, List, Any
 from langchain_openai import ChatOpenAI
+from features.design_generation.constants import COVER_DEFAULT_ASPECT_RATIO
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from dotenv import load_dotenv
@@ -327,14 +328,16 @@ PROMPTS_EVALUATOR_PROMPT = """You are a strict quality evaluator for MidJourney 
 2. **Format Validation** (check EACH prompt):
    - Must be comma-separated keywords ONLY (NO sentences)
    - Each keyword should be 1-3 words max
-   - Good: "owl, mandala, forest, detailed feathers, coloring book page, clean and simple line art, black and white --no color --ar 1:1"
+   - Good: "owl, mandala, forest, detailed feathers, coloring book page, black and white line art, thick outlines, white background --no shading color gradient shadow depth --ar 1:1"
    - Bad: "A beautiful owl sitting in a magical forest with intricate mandala patterns"
 
 3. **Required Elements** (in EVERY prompt):
    - Must contain "coloring book page"
-   - Must contain "clean and simple line art"
-   - Must contain "black and white"
-   - Must end with "--no color --ar 1:1"
+   - Must contain "black and white line art" (or "black and white")
+   - Must contain "thick outlines"
+   - Must contain "white background"
+   - Must contain "--no" and exclude shading/gradient (e.g. "shading", "gradient", "shadow", "depth" in the --no part)
+   - Must end with "--ar 1:1"
 
 4. **NO COLOR KEYWORDS** (CRITICAL - deduct heavily if found):
    - These are black and white line art pages. NEVER use color-related keywords.
@@ -439,19 +442,23 @@ def evaluate_prompts(prompts: list, theme_context: dict = None) -> dict:
 
     prompt_count = len(prompts)
 
-    # Pre-check: validate format of each prompt
+    # Pre-check: validate format of each prompt (must match INSIDE_PAGE_SUFFIX requirements)
     format_issues = []
     for i, p in enumerate(prompts):
-        if not p.endswith("--ar 1:1"):
-            format_issues.append(f"Prompt {i+1} missing MidJourney parameters")
-        if "coloring book page" not in p.lower():
-            format_issues.append(f"Prompt {i+1} missing 'coloring book page'")
-        if "clean and simple line art" not in p.lower():
-            format_issues.append(f"Prompt {i+1} missing 'clean and simple line art'")
-        if "black and white" not in p.lower():
-            format_issues.append(f"Prompt {i+1} missing 'black and white'")
-        # Check for banned color words (black and white line art only)
         p_lower = p.lower()
+        if not p.rstrip().endswith("--ar 1:1"):
+            format_issues.append(f"Prompt {i+1} must end with '--ar 1:1'")
+        if "coloring book page" not in p_lower:
+            format_issues.append(f"Prompt {i+1} missing 'coloring book page'")
+        if "black and white" not in p_lower:
+            format_issues.append(f"Prompt {i+1} missing 'black and white'")
+        if "thick outlines" not in p_lower:
+            format_issues.append(f"Prompt {i+1} missing 'thick outlines'")
+        if "white background" not in p_lower:
+            format_issues.append(f"Prompt {i+1} missing 'white background'")
+        if "--no" not in p_lower:
+            format_issues.append(f"Prompt {i+1} missing '--no' (e.g. --no shading color gradient shadow depth)")
+        # Check for banned color words (black and white line art only)
         for color_word in BANNED_COLOR_WORDS:
             if re.search(r'\b' + re.escape(color_word) + r'\b', p_lower):
                 format_issues.append(f"Prompt {i+1} contains color word: '{color_word}' (forbidden for B&W)")
@@ -525,7 +532,7 @@ COVER_PROMPTS_EVALUATOR_PROMPT = """You are a strict quality evaluator for MidJo
 ### Technical Requirements (25 points)
 1. **Count**: Target is 15 cover prompts. Current count: {prompt_count}. Slightly under or over (e.g. 12–18) is acceptable. Do NOT fail solely for being a few under or over.
 
-2. **Format**: Each prompt must be comma-separated keywords (no full sentences). Must end with "--ar 2:1" (landscape book cover ratio).
+2. **Format**: Each prompt must be comma-separated keywords (no full sentences). Must end with "--ar {cover_ar}" (book cover ratio, e.g. 2:3 for portrait).
 
 3. **Cover-specific (CRITICAL)**:
    - Must describe a BOOK COVER BACKGROUND (e.g. contain "book cover", "cover art", "cover design", or "illustrated cover").
@@ -563,15 +570,21 @@ COVER_PROMPTS_EVALUATOR_PROMPT = """You are a strict quality evaluator for MidJo
 Return ONLY valid JSON, no other text."""
 
 
-def evaluate_cover_prompts(prompts: list, theme_context: dict = None) -> dict:
+def evaluate_cover_prompts(
+    prompts: list,
+    theme_context: dict = None,
+    cover_aspect_ratio: str = None,
+) -> dict:
     """
     Evaluate MidJourney cover background prompts (full color, no text).
-    Criteria: book cover background, no inside-page wording, theme consistency, --ar 2:1.
+    Criteria: book cover background, no inside-page wording, theme consistency, --ar {cover_ar}.
 
     Returns:
         dict with: passed, score, issues, summary
     """
     llm = get_evaluator_llm()
+    cover_ar = (cover_aspect_ratio or COVER_DEFAULT_ASPECT_RATIO).strip()
+    ar_suffix = f"--ar {cover_ar}"
 
     main_theme = ""
     if theme_context:
@@ -585,12 +598,12 @@ def evaluate_cover_prompts(prompts: list, theme_context: dict = None) -> dict:
 
     prompt_count = len(prompts)
 
-    # Pre-check: forbidden inside-page phrasing; required --ar 2:1; prefer "no text"
+    # Pre-check: forbidden inside-page phrasing; required --ar {cover_ar}; prefer "no text"
     format_issues = []
     for i, p in enumerate(prompts):
         p_lower = p.lower()
-        if "--ar 2:1" not in p_lower and "--ar 2:1" not in p.replace(" ", ""):
-            format_issues.append(f"Prompt {i+1} should end with --ar 2:1 for book cover")
+        if ar_suffix not in p_lower and ar_suffix not in p.replace(" ", ""):
+            format_issues.append(f"Prompt {i+1} should end with {ar_suffix} for book cover")
         if "coloring book page" in p_lower or "clean and simple line art" in p_lower or "black and white" in p_lower or "--no color" in p_lower:
             format_issues.append(f"Prompt {i+1} contains inside-page wording (cover must be full color, no B&W)")
         if "book cover" not in p_lower and "cover art" not in p_lower and "cover design" not in p_lower and "cover background" not in p_lower:
@@ -608,6 +621,7 @@ def evaluate_cover_prompts(prompts: list, theme_context: dict = None) -> dict:
             "theme_section": theme_section,
             "prompt_count": prompt_count,
             "prompts_sample": prompts_sample,
+            "cover_ar": cover_ar,
         })
         evaluation = parse_json_response(result)
         if format_issues:

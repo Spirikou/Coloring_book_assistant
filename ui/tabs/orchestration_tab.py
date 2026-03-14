@@ -5,6 +5,7 @@ from __future__ import annotations
 import streamlit as st
 from pathlib import Path
 
+from core.browser_config import check_browser_connection, get_port_for_role
 from core.pipeline_templates import (
     PIPELINE_STEPS,
     TEMPLATES,
@@ -13,8 +14,8 @@ from core.pipeline_templates import (
     validate_pipeline,
 )
 from core.pipeline_runner import run_pipeline
+from core.jobs import has_running_image_job
 from core.persistence import list_design_packages, load_design_package
-from integrations.pinterest.browser_utils import check_browser_connection
 
 
 def _init_orchestrator_state() -> None:
@@ -257,14 +258,32 @@ def render_orchestration_tab() -> None:
             st.error(err)
 
     if st.button("Run pipeline", type="primary", disabled=not can_run, key="orchestrator_run_btn"):
-        browser_status = check_browser_connection()
-        needs_browser = any(s in pipeline for s in ["image", "canva", "pinterest"])
-        if needs_browser and not browser_status.get("connected", False):
+        # Enforce global serialization for image generation jobs.
+        if "image" in pipeline and has_running_image_job():
             st.error(
-                "Browser not connected. Start your browser with --remote-debugging-port=9222 "
-                "and ensure you're logged into Midjourney/Canva/Pinterest."
+                "An image generation job is already running. "
+                "Please wait for it to complete before starting another pipeline with an Image step."
             )
             st.stop()
+
+        needs_browser = any(s in pipeline for s in ["image", "canva", "pinterest"])
+        if needs_browser:
+            role_to_step = {"midjourney": "image", "canva": "canva", "pinterest": "pinterest"}
+            missing = []
+            for role, step_id in role_to_step.items():
+                if step_id not in pipeline:
+                    continue
+                port = get_port_for_role(role)
+                status = check_browser_connection(port)
+                if not status.get("connected", False):
+                    missing.append(f"{role} (port {port})")
+            if missing:
+                st.error(
+                    "Browser not connected for: "
+                    + ", ".join(missing)
+                    + ". Start browser(s) with remote debugging on the configured ports (Config tab)."
+                )
+                st.stop()
 
         effective_pkg_path = (
             design_package_path
@@ -303,8 +322,8 @@ def render_orchestration_tab() -> None:
                     save_custom_template(name, pipeline)
                     st.success(f"Saved as '{name}'")
                     st.rerun()
-                except ImportError:
-                    st.info("Custom template saving will be available after pipeline_persistence is implemented.")
+                except Exception as e:
+                    st.error(f"Failed to save template: {e}")
 
 
 def _render_progress(shared: dict, pipeline: list[str]) -> None:

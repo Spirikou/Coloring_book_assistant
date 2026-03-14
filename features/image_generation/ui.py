@@ -18,6 +18,8 @@ import streamlit as st
 from PIL import Image
 
 from config import GENERATED_IMAGES_DIR, IMAGE_MIN_SCORE_THRESHOLD, get_midjourney_config
+from core.jobs import create_job, has_running_image_job, update_job_status
+from core.persistence import list_design_packages, load_design_package
 from features.image_generation.midjourney_runner import (
     run_automated_process,
     run_automated_interior_then_cover_process,
@@ -32,7 +34,7 @@ from features.image_generation.agents.evaluator import (
     save_image_evaluations,
 )
 from features.image_generation.monitor import list_images_in_folder
-from integrations.midjourney.automation.browser_utils import check_browser_connection
+from core.browser_config import check_browser_connection, get_port_for_role
 from integrations.midjourney.automation.health_check import run_health_checks
 
 BROWSER_STATUS_KEY = "mj_browser_status"
@@ -163,9 +165,61 @@ def _init_mj_session_state() -> None:
             st.session_state[k] = v
 
 
+def _sync_mj_image_job_status() -> None:
+    """Sync Midjourney image job status with job store based on process state.
+
+    This ensures that when all Midjourney-related processes have finished, the
+    corresponding image job is marked as completed or failed.
+    """
+    job_id = st.session_state.get("mj_image_job_id")
+    if not job_id:
+        return
+
+    procs = [
+        st.session_state.get("mj_automated_process"),
+        st.session_state.get("mj_cover_automated_process"),
+        st.session_state.get("mj_publish_process"),
+        st.session_state.get("mj_cover_publish_process"),
+    ]
+    any_alive = False
+    for proc in procs:
+        try:
+            if proc is not None and proc.is_alive():
+                any_alive = True
+                break
+        except Exception:
+            continue
+
+    if any_alive:
+        return
+
+    # No relevant processes are alive; decide success vs failure from status dicts.
+    failed = False
+    status_keys = [
+        "mj_automated_shared",
+        "mj_cover_automated_shared",
+        "mj_status",
+        "mj_cover_status",
+    ]
+    for key in status_keys:
+        status = st.session_state.get(key)
+        if not isinstance(status, dict):
+            continue
+        if status.get("publish_status") == "error" or status.get("download_status") == "error" or status.get("uxd_action_status") == "error":
+            failed = True
+            break
+
+    try:
+        update_job_status(job_id, "failed" if failed else "completed")
+    except Exception:
+        pass
+    # Clear job id so we do not update multiple times.
+    st.session_state["mj_image_job_id"] = None
+
+
 def _render_system_and_prerequisites(settings: dict) -> dict:
     """Render System & Prerequisites section. Returns browser_connected, debug_show_clicks."""
-    port = settings.get("browser_debug_port", 9222)
+    port = get_port_for_role("midjourney")
     output_folder = Path(settings.get("output_folder", str(GENERATED_IMAGES_DIR)))
 
     health = run_health_checks(output_folder=output_folder, browser_port=port)
@@ -973,6 +1027,29 @@ def _render_downloaded_images_gallery(
                     st.rerun()
 
 
+def _designs_for_batch(generated_designs: list) -> list[dict]:
+    """Build full list of designs for batch: session designs + saved packages (no duplicates by path)."""
+    designs: list[dict] = []
+    seen_paths: set[str] = set()
+    for d in generated_designs:
+        if not isinstance(d, dict):
+            continue
+        designs.append(d)
+        p = (d.get("design_package_path") or "").strip()
+        if p:
+            seen_paths.add(p)
+    for pkg in list_design_packages():
+        path = (pkg.get("path") or "").strip()
+        if not path or path in seen_paths:
+            continue
+        loaded = load_design_package(path)
+        if not loaded or not loaded.get("midjourney_prompts"):
+            continue
+        designs.append(loaded)
+        seen_paths.add(path)
+    return designs
+
+
 def render_image_generation_tab(state: dict, generated_designs: list | None = None):
     """Render Image Generation tab with Midjourney workflow and folder grid.
 
@@ -981,8 +1058,11 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
         generated_designs: List of design states from concept-based generation (for batch mode).
     """
     generated_designs = generated_designs or []
+    designs_for_batch = _designs_for_batch(generated_designs)
 
     _init_mj_session_state()
+    # Sync any existing Midjourney image job with current process state.
+    _sync_mj_image_job_status()
     mj_status = st.session_state.mj_status
 
     st.markdown("## Image Generation")
@@ -1028,22 +1108,22 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
             for key in ("publish_status", "publish_error"):
                 if key in mgr_status:
                     mj_status[key] = mgr_status[key]
-    # Sync from uxd process when running (status; progress is already the Manager dict)
+    # Sync from uxd process: when running and when just finished (so completed/error appear)
     uxd_proc = st.session_state.get("mj_uxd_process")
-    if uxd_proc is not None and uxd_proc.is_alive():
-        mgr_status = st.session_state.get("mj_uxd_mgr_status")
-        if mgr_status:
+    if uxd_proc is not None:
+        mgr_status_uxd = st.session_state.get("mj_uxd_mgr_status")
+        if mgr_status_uxd:
             for key in ("uxd_action_status", "uxd_action_error"):
-                if key in mgr_status:
-                    mj_status[key] = mgr_status[key]
-    # Sync from download process when running (status; progress is already the Manager dict)
+                if key in mgr_status_uxd:
+                    mj_status[key] = mgr_status_uxd[key]
+    # Sync from download process: when running and when just finished (so completed/error and downloaded_paths appear)
     dl_proc = st.session_state.get("mj_download_process")
-    if dl_proc is not None and dl_proc.is_alive():
-        mgr_status = st.session_state.get("mj_download_mgr_status")
-        if mgr_status:
+    if dl_proc is not None:
+        mgr_status_dl = st.session_state.get("mj_download_mgr_status")
+        if mgr_status_dl:
             for key in ("download_status", "download_error", "downloaded_paths"):
-                if key in mgr_status:
-                    mj_status[key] = mgr_status[key]
+                if key in mgr_status_dl:
+                    mj_status[key] = mgr_status_dl[key]
     # Cover workflow: sync from cover processes
     mj_cover_status = st.session_state.mj_cover_status
     cover_pub_proc = st.session_state.get("mj_cover_publish_process")
@@ -1053,15 +1133,17 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
             for key in ("publish_status", "publish_error"):
                 if key in mgr:
                     mj_cover_status[key] = mgr[key]
+    # Sync from cover uxd process when running and when just finished
     cover_uxd_proc = st.session_state.get("mj_cover_uxd_process")
-    if cover_uxd_proc is not None and cover_uxd_proc.is_alive():
+    if cover_uxd_proc is not None:
         mgr = st.session_state.get("mj_cover_uxd_mgr_status")
         if mgr:
             for key in ("uxd_action_status", "uxd_action_error"):
                 if key in mgr:
                     mj_cover_status[key] = mgr[key]
+    # Sync from cover download process when running and when just finished
     cover_dl_proc = st.session_state.get("mj_cover_download_process")
-    if cover_dl_proc is not None and cover_dl_proc.is_alive():
+    if cover_dl_proc is not None:
         mgr = st.session_state.get("mj_cover_download_mgr_status")
         if mgr:
             for key in ("download_status", "download_error", "downloaded_paths"):
@@ -1116,12 +1198,15 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
 
     # Batch mode: run multiple designs sequentially (each in own subfolder)
     batch_selected: list[int] = []
-    if len(generated_designs) >= 2:
+    num_designs = len(designs_for_batch)
+    if num_designs >= 2:
         with st.expander("Run multiple designs (batch)", expanded=automated_running and mj_status.get("batch_total", 0) > 1):
             st.caption(
-                "Run image generation for selected designs sequentially. Each design gets its own subfolder."
+                "**Full auto per design:** For each selected design, runs Publish → Upscale all → Download. "
+                "Designs run one after the other, each in its own subfolder. "
+                "Includes designs from this session and saved design packages."
             )
-            for idx, design in enumerate(generated_designs):
+            for idx, design in enumerate(designs_for_batch):
                 title = design.get("title", "Untitled") or "Untitled"
                 concept = design.get("concept_source", {})
                 theme = concept.get("theme") or concept.get("theme_concept", "")
@@ -1139,14 +1224,14 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
             col_sel, col_clr, _ = st.columns([1, 1, 4])
             with col_sel:
                 if st.button("Select all", key="mj_batch_select_all"):
-                    st.session_state.mj_batch_selected_indices = list(range(len(generated_designs)))
+                    st.session_state.mj_batch_selected_indices = list(range(len(designs_for_batch)))
                     st.rerun()
             with col_clr:
                 if st.button("Clear", key="mj_batch_clear"):
                     st.session_state.mj_batch_selected_indices = []
                     st.rerun()
 
-            batch_designs = [generated_designs[i] for i in batch_selected if i < len(generated_designs)]
+            batch_designs = [designs_for_batch[i] for i in batch_selected if i < len(designs_for_batch)]
             batch_ready = (
                 batch_designs
                 and browser_connected
@@ -1154,14 +1239,24 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
                 and not automated_running
                 and not step_running
             )
-            run_batch_clicked = st.button(
-                "Run batch",
-                type="primary",
-                key="mj_run_batch_btn",
-                disabled=not batch_ready,
-                help=f"Run full automated pipeline for {len(batch_designs)} design(s), each in its own subfolder.",
-            )
-            if run_batch_clicked and batch_designs and browser_connected and button_coords:
+            col_run, col_quick = st.columns(2)
+            with col_run:
+                run_batch_clicked = st.button(
+                    "Run",
+                    type="primary",
+                    key="mj_run_batch_btn",
+                    disabled=not batch_ready,
+                    help=f"Run full automated pipeline for {len(batch_designs)} design(s), each in its own subfolder.",
+                )
+            with col_quick:
+                quick_run_clicked = st.button(
+                    "Quick run",
+                    key="mj_batch_quick_run_btn",
+                    disabled=not batch_ready,
+                    help="Run first 7 prompts per design (publish → upscale → download) to preview.",
+                )
+            batch_quick_run_7 = quick_run_clicked
+            if (run_batch_clicked or quick_run_clicked) and batch_designs and browser_connected and button_coords:
                 health = run_health_checks(
                     output_folder=base_output,
                     browser_port=settings["browser_debug_port"],
@@ -1172,7 +1267,10 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
                 used_slugs: set[str] = set()
                 designs_with_folders: list[tuple[dict, Path, int]] = []
                 for orig_idx in batch_selected:
-                    design = generated_designs[orig_idx]
+                    design = designs_for_batch[orig_idx]
+                    if batch_quick_run_7:
+                        prompts = (design.get("midjourney_prompts") or [])[:7]
+                        design = {**design, "midjourney_prompts": prompts}
                     slug = _design_to_subfolder_slug(design, orig_idx, used_slugs)
                     subfolder = base_output / slug
                     designs_with_folders.append((design, subfolder, orig_idx))
@@ -1211,6 +1309,22 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
                 st.session_state.mj_uxd_progress = mgr_uxd
                 st.session_state.mj_download_progress = mgr_download
                 st.rerun()
+    elif num_designs == 1:
+        with st.expander("Run multiple designs (batch)", expanded=False):
+            st.caption(
+                "Batch mode runs several designs one after the other, each in its own subfolder. "
+                "Generate **2 or more designs** in the **Design Generation** tab (e.g. run the agent with multiple concepts), "
+                "then return here to select which designs to run and click **Run batch**."
+            )
+            st.info("You have 1 design. Add more in Design Generation to use batch.")
+    else:
+        with st.expander("Run multiple designs (batch)", expanded=False):
+            st.caption(
+                "Batch mode runs several designs one after the other, each in its own subfolder. "
+                "Generate **2 or more designs** in the **Design Generation** tab (e.g. run the agent with multiple concepts), "
+                "then return here to select which designs to run and click **Run batch**."
+            )
+            st.info("Generate designs in the Design Generation tab to use batch here.")
 
     _workflow_step_indicator(mj_status)
 
@@ -1260,7 +1374,17 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
         help=f"Publish → Upscale all → Download all{est_text_auto}",
     )
     then_run_cover = False
+    quick_run_7 = False
     if run_automated:
+        quick_run_7 = st.checkbox(
+            "Quick run (first 7 prompts only)",
+            value=False,
+            key="mj_quick_run_7_checkbox",
+            help="Run only the first 7 prompts (publish → upscale → download) to preview output before generating the full set.",
+        )
+        if quick_run_7 and prompts:
+            n_preview = min(7, len(prompts))
+            st.caption(f"Preview: {n_preview} prompt(s) will be run (publish → upscale → download).")
         then_run_cover = st.checkbox(
             "Then run cover automated",
             value=False,
@@ -1278,6 +1402,20 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
             help=f"Submit prompts only.{est_text}" if not run_automated else f"Full pipeline{est_text_auto}",
         )
         if pub_clicked and prompts and browser_connected and button_coords:
+            # Enforce global serialization for Midjourney image generation.
+            if has_running_image_job():
+                st.error(
+                    "An image generation job is already running. "
+                    "Please wait for it to complete before starting another Midjourney run."
+                )
+                return
+            design_path = state.get("design_package_path", "") if isinstance(state, dict) else ""
+            try:
+                job = create_job(design_path or "", action="image", status="running")
+                st.session_state["mj_image_job_id"] = job.id
+            except Exception as e:
+                st.error(f"Could not register image job: {e}")
+                return
             health = run_health_checks(
                 output_folder=Path(output_folder),
                 browser_port=settings["browser_debug_port"],
@@ -1290,6 +1428,8 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
 
             if run_automated:
                 st.session_state.mj_automated_stop_flag["stop"] = False
+                # Quick run: limit to first 7 prompts for preview
+                prompts_to_run = prompts[:7] if quick_run_7 else prompts
                 # Cover prompts from session (cover section text area from previous run)
                 cover_raw = st.session_state.get(
                     "mj_cover_prompts_area",
@@ -1333,7 +1473,7 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
                         mgr_cover_uxd,
                         mgr_cover_download,
                     ) = run_automated_interior_then_cover_process(
-                        prompts,
+                        prompts_to_run,
                         Path(output_folder),
                         cover_prompts_list_for_run,
                         cover_folder,
@@ -1375,7 +1515,7 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
                     for key in ("mj_automated_cover_shared", "mj_automated_cover_publish_progress", "mj_automated_cover_uxd_progress", "mj_automated_cover_download_progress"):
                         st.session_state.pop(key, None)
                     proc, manager, mgr_stop, mgr_shared, mgr_publish, mgr_uxd, mgr_download = run_automated_process(
-                        prompts,
+                        prompts_to_run,
                         button_coords,
                         settings["browser_debug_port"],
                         Path(output_folder),
@@ -1798,8 +1938,8 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
     if len(design_images_folders) >= 2:
         folder_options = []
         for idx, path in sorted(design_images_folders.items()):
-            if generated_designs and idx < len(generated_designs):
-                title = generated_designs[idx].get("title", "Untitled") or "Untitled"
+            if designs_for_batch and idx < len(designs_for_batch):
+                title = designs_for_batch[idx].get("title", "Untitled") or "Untitled"
                 folder_options.append((path, f"{title} ({Path(path).name})"))
             else:
                 folder_options.append((path, f"Design {idx + 1} ({Path(path).name})"))
@@ -1881,6 +2021,20 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
             help="Submit cover prompts only." if not cover_run_automated else f"Full pipeline (cover){cover_est_text_auto}",
         )
     if cover_pub_clicked and cover_prompts_list and browser_connected and button_coords:
+        # Enforce global serialization for Midjourney image generation (cover workflow).
+        if has_running_image_job():
+            st.error(
+                "An image generation job is already running. "
+                "Please wait for it to complete before starting another Midjourney run."
+            )
+            return
+        design_path = state.get("design_package_path", "") if isinstance(state, dict) else ""
+        try:
+            job = create_job(design_path or "", action="image", status="running")
+            st.session_state["mj_image_job_id"] = job.id
+        except Exception as e:
+            st.error(f"Could not register image job: {e}")
+            return
         viewport = cfg.get("viewport") or {"width": 1920, "height": 1080}
         coord_vp = cfg.get("coordinates_viewport") or {"width": 1920, "height": 1080}
         if cover_run_automated:

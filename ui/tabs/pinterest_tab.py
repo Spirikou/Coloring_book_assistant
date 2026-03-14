@@ -1,11 +1,13 @@
 """Pinterest Publishing tab."""
 
+from __future__ import annotations
+
 import streamlit as st
 from pathlib import Path
 
-from integrations.pinterest.browser_utils import check_browser_connection
+from core.browser_config import check_browser_connection, get_port_for_role
+from core.persistence import list_design_packages, load_design_package, load_pinterest_config
 from workflows.pinterest.publisher import PinterestPublishingWorkflow
-from core.persistence import load_pinterest_config
 from ui.components.pinterest_components import (
     render_pinterest_combined_checks,
     render_configuration_section,
@@ -15,10 +17,46 @@ from ui.components.pinterest_components import (
     render_session_management,
 )
 
+PINTEREST_TAB_STATE_KEY = "pinterest_tab_state"
 
-def render_pinterest_tab(state: dict):
-    """Render the Pinterest Publishing tab."""
+
+def _resolve_pinterest_state(workflow_state: dict | None) -> tuple[dict | None, bool]:
+    """Resolve state from workflow or tab-specific load. Returns (state, from_workflow)."""
+    state = workflow_state or st.session_state.get(PINTEREST_TAB_STATE_KEY)
+    from_workflow = state is workflow_state and workflow_state is not None
+    return state, from_workflow
+
+
+def _persist_pinterest_state(state: dict, from_workflow: bool) -> None:
+    if from_workflow:
+        st.session_state.workflow_state = state
+    else:
+        st.session_state[PINTEREST_TAB_STATE_KEY] = state
+
+
+def render_pinterest_tab(workflow_state: dict | None) -> None:
+    """Render the Pinterest Publishing tab. Uses workflow_state or a design loaded in this tab."""
     st.header("Pinterest Publishing")
+
+    state, from_workflow = _resolve_pinterest_state(workflow_state)
+    if state is None:
+        packages = list_design_packages()
+        if not packages:
+            st.info("Generate a design package first in the Design Generation tab.")
+            return
+        st.caption("Choose a design to publish (or load one from the sidebar).")
+        options = [f"{p['title']} ({p['image_count']} imgs)" for p in packages]
+        idx = st.selectbox("Design package", range(len(options)), format_func=lambda i: options[i], key="pinterest_tab_select_pkg")
+        if st.button("Load for this tab", key="pinterest_tab_load_btn"):
+            loaded = load_design_package(packages[idx]["path"])
+            if loaded:
+                st.session_state[PINTEREST_TAB_STATE_KEY] = loaded
+                st.rerun()
+            else:
+                st.error("Failed to load")
+        return
+
+    st.caption(f"Using: **{state.get('title', 'Untitled')}**" + (" (from sidebar)" if from_workflow else " (loaded in this tab)"))
 
     if "pinterest_workflow" not in st.session_state:
         st.session_state.pinterest_workflow = PinterestPublishingWorkflow()
@@ -39,22 +77,23 @@ def render_pinterest_tab(state: dict):
     if "pinterest_folder_path" not in state:
         state["pinterest_folder_path"] = ""
 
+    pinterest_port = get_port_for_role("pinterest")
     if st.session_state.get("check_browser_clicked", False):
         st.session_state.check_browser_clicked = False
-        browser_status = check_browser_connection()
+        browser_status = check_browser_connection(pinterest_port)
         state["browser_status"] = browser_status
-        st.session_state.workflow_state = state
+        _persist_pinterest_state(state, from_workflow)
 
     if st.session_state.get("refresh_browser_check_pinterest", False):
         st.session_state.refresh_browser_check_pinterest = False
-        browser_status = check_browser_connection()
+        browser_status = check_browser_connection(pinterest_port)
         state["browser_status"] = browser_status
-        st.session_state.workflow_state = state
+        _persist_pinterest_state(state, from_workflow)
 
     if not state.get("browser_status"):
-        browser_status = check_browser_connection()
+        browser_status = check_browser_connection(pinterest_port)
         state["browser_status"] = browser_status
-        st.session_state.workflow_state = state
+        _persist_pinterest_state(state, from_workflow)
 
     prerequisites = render_pinterest_combined_checks(state)
     images_folder_path = prerequisites.get("images_folder_path", state.get("images_folder_path", ""))
@@ -68,7 +107,7 @@ def render_pinterest_tab(state: dict):
             config["images_folder"] = images_folder_path
         if config["board_name"]:
             state["pinterest_board_name"] = config["board_name"]
-            st.session_state.workflow_state = state
+            _persist_pinterest_state(state, from_workflow)
 
         st.subheader("Publishing")
         if state.get("pinterest_status") == "publishing":
@@ -100,7 +139,7 @@ def render_pinterest_tab(state: dict):
                     with st.spinner("Preparing..."):
                         state["pinterest_status"] = "preparing"
                         state["images_folder_path"] = config["images_folder"]
-                        st.session_state.workflow_state = state
+                        _persist_pinterest_state(state, from_workflow)
                         # Use preview selection (user may have removed images)
                         selected = preview.get("selected_images") or []
                         design_state = {**state, "title": preview["title"], "description": preview["description"]}
@@ -118,13 +157,13 @@ def render_pinterest_tab(state: dict):
                         )
                         state["pinterest_folder_path"] = folder_path
                         state["pinterest_status"] = "publishing"
-                        st.session_state.workflow_state = state
+                        _persist_pinterest_state(state, from_workflow)
 
                     progress_placeholder = st.empty()
 
                     def progress_callback(progress_update: dict):
                         state["pinterest_progress"] = progress_update
-                        st.session_state.workflow_state = state
+                        _persist_pinterest_state(state, from_workflow)
                         cur = progress_update.get("current", 0)
                         tot = progress_update.get("total", 0)
                         with progress_placeholder.container():
@@ -141,7 +180,7 @@ def render_pinterest_tab(state: dict):
                         )
                         state["pinterest_results"] = results
                         state["pinterest_status"] = "completed" if results.get("success", False) else "failed"
-                        st.session_state.workflow_state = state
+                        _persist_pinterest_state(state, from_workflow)
                     st.rerun()
                 except Exception as e:
                     import traceback
@@ -155,7 +194,7 @@ def render_pinterest_tab(state: dict):
                         except Exception:
                             pass
                     state["pinterest_status"] = "failed"
-                    st.session_state.workflow_state = state
+                    _persist_pinterest_state(state, from_workflow)
 
         if state.get("pinterest_status") in ["completed", "failed"]:
             render_results_summary(state.get("pinterest_results", {}))
@@ -171,12 +210,12 @@ def render_pinterest_tab(state: dict):
                 if board_name and browser_status.get("connected", False):
                     state["pinterest_rerun_requested"] = False
                     state["pinterest_status"] = "publishing"
-                    st.session_state.workflow_state = state
+                    _persist_pinterest_state(state, from_workflow)
                     progress_placeholder = st.empty()
 
                     def rerun_progress_callback(progress_update: dict):
                         state["pinterest_progress"] = progress_update
-                        st.session_state.workflow_state = state
+                        _persist_pinterest_state(state, from_workflow)
                         cur = progress_update.get("current", 0)
                         tot = progress_update.get("total", 0)
                         with progress_placeholder.container():
@@ -194,7 +233,7 @@ def render_pinterest_tab(state: dict):
                             )
                             state["pinterest_results"] = results
                             state["pinterest_status"] = "completed" if results.get("success", False) else "failed"
-                            st.session_state.workflow_state = state
+                            _persist_pinterest_state(state, from_workflow)
                         st.rerun()
                     except Exception as e:
                         import traceback
@@ -203,7 +242,7 @@ def render_pinterest_tab(state: dict):
                             st.code(traceback.format_exc())
                         state["pinterest_status"] = "failed"
                         state["pinterest_rerun_requested"] = False
-                        st.session_state.workflow_state = state
+                        _persist_pinterest_state(state, from_workflow)
                         st.rerun()
                 else:
                     if not board_name:
@@ -211,7 +250,7 @@ def render_pinterest_tab(state: dict):
                     else:
                         st.error("Browser not connected. Check browser connection above.")
                     state["pinterest_rerun_requested"] = False
-                    st.session_state.workflow_state = state
+                    _persist_pinterest_state(state, from_workflow)
 
             render_session_management(state)
     else:

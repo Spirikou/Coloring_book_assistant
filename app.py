@@ -12,6 +12,11 @@ Run with: uv run streamlit run app.py
 
 import asyncio
 import sys
+import os
+from dotenv import load_dotenv
+
+# Load environment variables before importing project modules
+load_dotenv()
 
 # Windows: ProactorEventLoop required for Playwright (SelectorEventLoop raises
 # NotImplementedError on subprocess). Set before Streamlit/threading.
@@ -19,19 +24,16 @@ if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 import streamlit as st
-import os
-from dotenv import load_dotenv
 
 from ui.tabs.guide_tab import render_guide_tab
 from ui.tabs.pinterest_tab import render_pinterest_tab
 from ui.tabs.canva_tab import render_canva_tab
 from ui.tabs.orchestration_tab import render_orchestration_tab
+from ui.tabs.progress_tab import render_progress_tab
+from ui.tabs.config_tab import render_config_tab
 from ui.components.design_selector import render_design_package_selector
 from features.design_generation.ui import render_design_generation_tab
 from features.image_generation.ui import render_image_generation_tab
-
-# Load environment variables
-load_dotenv()
 
 # Page configuration
 _logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo.png")
@@ -148,14 +150,18 @@ def main():
         st.session_state.is_running = False
     
     # Multi-tab interface
-    tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "Get Started",
-        "Design Generation",
-        "Image Generation",
-        "Canva Design",
-        "Pinterest Publishing",
-        "Orchestration",
-    ])
+    tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(
+        [
+            "Get Started",
+            "Design Generation",
+            "Image Generation",
+            "Canva Design",
+            "Pinterest Publishing",
+            "Orchestration",
+            "Progress",
+            "Config",
+        ]
+    )
     
     with tab0:
         render_guide_tab()
@@ -177,28 +183,20 @@ def main():
     
     with tab3:
         workflow_state = st.session_state.get("workflow_state")
-        if workflow_state:
-            render_canva_tab(workflow_state)
-        else:
-            from core.persistence import list_design_packages
-            packages = list_design_packages()
-            if packages:
-                render_design_package_selector(compact=False, key_prefix="canva_design")
-            st.info("Generate a design package and upload images first.")
-    
+        render_canva_tab(workflow_state)
+
     with tab4:
         workflow_state = st.session_state.get("workflow_state")
-        if workflow_state:
-            render_pinterest_tab(workflow_state)
-        else:
-            from core.persistence import list_design_packages
-            packages = list_design_packages()
-            if packages:
-                render_design_package_selector(compact=False, key_prefix="pinterest_design")
-            st.info("Generate a design package and upload images first.")
+        render_pinterest_tab(workflow_state)
 
     with tab5:
         render_orchestration_tab()
+
+    with tab6:
+        render_progress_tab()
+
+    with tab7:
+        render_config_tab()
 
     st.markdown(
         """
