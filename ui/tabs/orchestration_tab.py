@@ -58,8 +58,9 @@ def _resolve_template_steps(template_name: str) -> list[str]:
     return get_template_steps(template_name)
 
 
+@st.fragment
 def render_orchestration_tab() -> None:
-    """Render the Orchestration tab with template selector, step list, and run controls."""
+    """Render the Orchestration tab with template selector, step list, and run controls. Fragment so tab stays stable when other tabs rerun."""
     _init_orchestrator_state()
 
     st.header("Pipeline Orchestration")
@@ -72,6 +73,7 @@ def render_orchestration_tab() -> None:
     design_package_path = (workflow_state or {}).get("design_package_path", "")
 
     # --- Template selector ---
+    st.caption("**Start from template**")
     col_tpl, col_apply = st.columns([3, 1])
     with col_tpl:
         template_options = _get_template_options()
@@ -80,30 +82,53 @@ def render_orchestration_tab() -> None:
             options=template_options,
             key="orchestrator_template_select",
             index=0 if template_options else 0,
+            label_visibility="collapsed",
         )
     with col_apply:
-        if st.button("Apply", key="orchestrator_apply_btn"):
-            steps = _resolve_template_steps(selected_template)
-            st.session_state.orchestrator_pipeline = steps
-            st.session_state.orchestrator_template = selected_template
-            st.rerun()
+        apply_clicked = st.button("Apply", key="orchestrator_apply_btn", use_container_width=True)
+    if apply_clicked:
+        steps = _resolve_template_steps(selected_template)
+        st.session_state.orchestrator_pipeline = steps
+        st.session_state.orchestrator_template = selected_template
+        st.rerun()
+    if st.session_state.get("orchestrator_template"):
+        st.caption(f"Current: **{st.session_state.orchestrator_template}**")
 
-    # --- Step list ---
+    # --- Step list (two columns) ---
     st.subheader("Pipeline steps")
     st.caption("Check the steps to include. Order is fixed.")
 
+    mid = (len(PIPELINE_STEPS) + 1) // 2
+    left_steps, right_steps = PIPELINE_STEPS[:mid], PIPELINE_STEPS[mid:]
     new_pipeline = []
-    for step_def in PIPELINE_STEPS:
-        step_id = step_def["id"]
-        default = step_id in pipeline
-        checked = st.checkbox(
-            f"{step_def['label']}",
-            value=default,
-            key=f"orchestrator_step_{step_id}",
-            help=step_def.get("description", ""),
-        )
-        if checked:
-            new_pipeline.append(step_id)
+    col_left, col_right = st.columns(2)
+    with col_left:
+        for step_def in left_steps:
+            step_id = step_def["id"]
+            default = step_id in pipeline
+            checked = st.checkbox(
+                step_def["label"],
+                value=default,
+                key=f"orchestrator_step_{step_id}",
+                help=step_def.get("description", ""),
+            )
+            if checked:
+                new_pipeline.append(step_id)
+    with col_right:
+        for step_def in right_steps:
+            step_id = step_def["id"]
+            default = step_id in pipeline
+            checked = st.checkbox(
+                step_def["label"],
+                value=default,
+                key=f"orchestrator_step_{step_id}",
+                help=step_def.get("description", ""),
+            )
+            if checked:
+                new_pipeline.append(step_id)
+    # Preserve step order (left column first, then right)
+    order = [s["id"] for s in PIPELINE_STEPS]
+    new_pipeline = [s for s in order if s in new_pipeline]
 
     if new_pipeline != pipeline:
         st.session_state.orchestrator_pipeline = new_pipeline
@@ -123,18 +148,24 @@ def render_orchestration_tab() -> None:
         if not packages:
             st.warning("No design packages found. Create one in the Design Generation tab first.")
         else:
+            st.caption("**Design package**")
             options = ["— Select —"] + [f"{p['title']} ({p['image_count']} imgs)" for p in packages]
-            selected_idx = st.selectbox(
-                "Design package",
-                options=options,
-                key="orchestrator_design_pkg_select",
-            )
+            col_sel, col_load = st.columns([4, 1])
+            with col_sel:
+                selected_idx = st.selectbox(
+                    "Design package",
+                    options=options,
+                    key="orchestrator_design_pkg_select",
+                    label_visibility="collapsed",
+                )
+            with col_load:
+                load_clicked = st.button("Load package", key="orchestrator_load_pkg_btn", use_container_width=True)
             if selected_idx and selected_idx != "— Select —":
                 idx = options.index(selected_idx) - 1
                 pkg = packages[idx]
                 design_package_path = pkg["path"]
                 st.session_state.orchestrator_design_package_path = design_package_path
-                if st.button("Load package", key="orchestrator_load_pkg_btn"):
+                if load_clicked:
                     loaded = load_design_package(pkg["path"])
                     if loaded:
                         st.session_state.workflow_state = loaded
@@ -159,41 +190,81 @@ def render_orchestration_tab() -> None:
     else:
         user_request = ""
 
-    # --- Per-step config ---
+    # --- Per-step config (one row when both Canva + Pinterest) ---
     if "canva" in pipeline or "pinterest" in pipeline:
         with st.expander("Step configuration", expanded=False):
             config = st.session_state.get("orchestrator_config", {})
             canva_config = config.get("canva_config", {})
-            if "canva" in pipeline:
-                st.markdown("**Canva**")
-                canva_config["page_size"] = st.text_input(
-                    "Page size",
-                    value=canva_config.get("page_size", "8.625x8.75"),
-                    key="orchestrator_canva_page_size",
-                )
-                canva_config["margin_percent"] = st.number_input(
-                    "Margin %",
-                    min_value=0.0,
-                    max_value=50.0,
-                    value=float(canva_config.get("margin_percent", 8.0)),
-                    key="orchestrator_canva_margin",
-                )
-                canva_config["outline_height_percent"] = st.number_input(
-                    "Outline height %",
-                    min_value=0.0,
-                    max_value=50.0,
-                    value=float(canva_config.get("outline_height_percent", 6.0)),
-                    key="orchestrator_canva_outline",
-                )
-                canva_config["blank_between"] = st.checkbox(
-                    "Blank page between images",
-                    value=canva_config.get("blank_between", True),
-                    key="orchestrator_canva_blank",
-                )
-            if "pinterest" in pipeline:
-                st.markdown("**Pinterest**")
+            if "canva" in pipeline and "pinterest" in pipeline:
+                col_ps, col_m, col_o, col_blank, col_board = st.columns([2, 1, 1, 1, 2])
+                with col_ps:
+                    canva_config["page_size"] = st.text_input(
+                        "Page size",
+                        value=canva_config.get("page_size", "8.625x8.75"),
+                        key="orchestrator_canva_page_size",
+                    )
+                with col_m:
+                    canva_config["margin_percent"] = st.number_input(
+                        "Margin %",
+                        min_value=0.0,
+                        max_value=50.0,
+                        value=float(canva_config.get("margin_percent", 8.0)),
+                        key="orchestrator_canva_margin",
+                    )
+                with col_o:
+                    canva_config["outline_height_percent"] = st.number_input(
+                        "Outline %",
+                        min_value=0.0,
+                        max_value=50.0,
+                        value=float(canva_config.get("outline_height_percent", 6.0)),
+                        key="orchestrator_canva_outline",
+                    )
+                with col_blank:
+                    canva_config["blank_between"] = st.checkbox(
+                        "Blank between",
+                        value=canva_config.get("blank_between", True),
+                        key="orchestrator_canva_blank",
+                    )
+                with col_board:
+                    config["board_name"] = st.text_input(
+                        "Pinterest board",
+                        value=config.get("board_name", ""),
+                        key="orchestrator_pinterest_board",
+                        placeholder="e.g. Coloring Books",
+                    )
+            elif "canva" in pipeline:
+                col_ps, col_m, col_o, col_blank = st.columns([2, 1, 1, 1])
+                with col_ps:
+                    canva_config["page_size"] = st.text_input(
+                        "Page size",
+                        value=canva_config.get("page_size", "8.625x8.75"),
+                        key="orchestrator_canva_page_size",
+                    )
+                with col_m:
+                    canva_config["margin_percent"] = st.number_input(
+                        "Margin %",
+                        min_value=0.0,
+                        max_value=50.0,
+                        value=float(canva_config.get("margin_percent", 8.0)),
+                        key="orchestrator_canva_margin",
+                    )
+                with col_o:
+                    canva_config["outline_height_percent"] = st.number_input(
+                        "Outline %",
+                        min_value=0.0,
+                        max_value=50.0,
+                        value=float(canva_config.get("outline_height_percent", 6.0)),
+                        key="orchestrator_canva_outline",
+                    )
+                with col_blank:
+                    canva_config["blank_between"] = st.checkbox(
+                        "Blank between",
+                        value=canva_config.get("blank_between", True),
+                        key="orchestrator_canva_blank",
+                    )
+            else:
                 config["board_name"] = st.text_input(
-                    "Board name",
+                    "Pinterest board",
                     value=config.get("board_name", ""),
                     key="orchestrator_pinterest_board",
                     placeholder="e.g. Coloring Books",
@@ -246,18 +317,35 @@ def render_orchestration_tab() -> None:
             st.rerun()
         st.stop()
 
-    # --- Run button ---
+    # --- Run button + status on one row ---
     can_run = (
         len(pipeline) > 0
         and len(errors) == 0
         and not running
     )
 
+    col_run, col_status = st.columns([2, 3])
+    with col_run:
+        run_clicked = st.button("Run pipeline", type="primary", disabled=not can_run, key="orchestrator_run_btn", use_container_width=True)
+    with col_status:
+        if not can_run:
+            if running:
+                st.caption("Pipeline is running. Wait or refresh status.")
+            elif errors:
+                st.caption(f"{len(errors)} error(s) — fix above to enable Run.")
+            elif not pipeline:
+                st.caption("Add at least one step above to enable Run.")
+            else:
+                st.caption("Complete requirements above to enable Run.")
+        else:
+            st.caption("Ready — click Run pipeline to start.")
     if errors:
-        for err in errors:
-            st.error(err)
+        with st.expander("Pipeline errors", expanded=True):
+            for err in errors:
+                st.error(err)
+            st.caption("Fix the issues above (e.g. add a design package, enter design idea, or set board name in Step configuration) and try again.")
 
-    if st.button("Run pipeline", type="primary", disabled=not can_run, key="orchestrator_run_btn"):
+    if run_clicked:
         # Enforce global serialization for image generation jobs.
         if "image" in pipeline and has_running_image_job():
             st.error(
@@ -304,21 +392,26 @@ def render_orchestration_tab() -> None:
         st.session_state.orchestrator_shared = shared_dict
         st.rerun()
 
-    # --- Save as template ---
+    # --- Save as template (name + button on one row) ---
     if pipeline and st.session_state.get("orchestrator_template"):
         resolved = _resolve_template_steps(st.session_state.orchestrator_template)
         if pipeline != resolved:
-            st.caption("Pipeline modified from template.")
-            custom_name = st.text_input(
-                "Template name",
-                value=st.session_state.get("orchestrator_custom_template_name", "My pipeline"),
-                key="orchestrator_custom_template_name",
-                placeholder="e.g. My usual publish run",
-            )
-            if st.button("Save as custom template", key="orchestrator_save_template_btn"):
+            st.caption("Pipeline modified from template. **Template name**")
+            col_name, col_save = st.columns([3, 1])
+            with col_name:
+                custom_name = st.text_input(
+                    "Template name",
+                    value=st.session_state.get("orchestrator_custom_template_name", "My pipeline"),
+                    key="orchestrator_custom_template_name",
+                    placeholder="e.g. My usual publish run",
+                    label_visibility="collapsed",
+                )
+            with col_save:
+                save_tpl_clicked = st.button("Save as custom template", key="orchestrator_save_template_btn", use_container_width=True)
+            if save_tpl_clicked:
                 try:
                     from core.pipeline_persistence import save_custom_template
-                    name = custom_name.strip() or "My pipeline"
+                    name = (custom_name or "").strip() or "My pipeline"
                     save_custom_template(name, pipeline)
                     st.success(f"Saved as '{name}'")
                     st.rerun()

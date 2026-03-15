@@ -1,4 +1,4 @@
-"""Image download, save, and path management utilities."""
+"""Midjourney-specific image utilities: prompt-to-filename, build_image_path, and download/save for MJ automation."""
 
 from __future__ import annotations
 

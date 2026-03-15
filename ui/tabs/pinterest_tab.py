@@ -6,7 +6,7 @@ import streamlit as st
 from pathlib import Path
 
 from core.browser_config import check_browser_connection, get_port_for_role
-from core.persistence import list_design_packages, load_design_package, load_pinterest_config
+from core.persistence import load_pinterest_config
 from workflows.pinterest.publisher import PinterestPublishingWorkflow
 from ui.components.pinterest_components import (
     render_pinterest_combined_checks,
@@ -38,22 +38,13 @@ def render_pinterest_tab(workflow_state: dict | None) -> None:
     """Render the Pinterest Publishing tab. Uses workflow_state or a design loaded in this tab."""
     st.header("Pinterest Publishing")
 
-    state, from_workflow = _resolve_pinterest_state(workflow_state)
+    from ui.components.design_selector import render_tab_design_selector
+    render_tab_design_selector("pinterest", persist_to_workflow=True, tab_state_key=PINTEREST_TAB_STATE_KEY)
+    st.markdown("---")
+
+    state, from_workflow = _resolve_pinterest_state(st.session_state.get("workflow_state"))
     if state is None:
-        packages = list_design_packages()
-        if not packages:
-            st.info("Generate a design package first in the Design Generation tab.")
-            return
-        st.caption("Choose a design to publish (or load one from the sidebar).")
-        options = [f"{p['title']} ({p['image_count']} imgs)" for p in packages]
-        idx = st.selectbox("Design package", range(len(options)), format_func=lambda i: options[i], key="pinterest_tab_select_pkg")
-        if st.button("Load for this tab", key="pinterest_tab_load_btn"):
-            loaded = load_design_package(packages[idx]["path"])
-            if loaded:
-                st.session_state[PINTEREST_TAB_STATE_KEY] = loaded
-                st.rerun()
-            else:
-                st.error("Failed to load")
+        st.info("Load a design package above or create one in the Design Generation tab.")
         return
 
     st.caption(f"Using: **{state.get('title', 'Untitled')}**" + (" (from sidebar)" if from_workflow else " (loaded in this tab)"))
@@ -128,7 +119,24 @@ def render_pinterest_tab(workflow_state: dict | None) -> None:
                 and config["images_folder"]
                 and len(preview.get("selected_images", [])) > 0
             )
-            if st.button("Start Publishing", disabled=not can_publish, key="start_publishing_btn"):
+            n_images = len(preview.get("selected_images", []))
+            col_start, col_status = st.columns([2, 3])
+            with col_start:
+                start_clicked = st.button("Start Publishing", disabled=not can_publish, key="start_publishing_btn", use_container_width=True)
+            with col_status:
+                if can_publish:
+                    st.caption(f"{n_images} image(s) → board **{config['board_name']}** — ready to publish.")
+                else:
+                    if not config["board_name"]:
+                        st.caption("Set board name in Configuration to enable Start Publishing.")
+                    elif not browser_status.get("connected", False):
+                        st.caption("Connect browser (System & Prerequisites) to enable Start Publishing.")
+                    elif n_images == 0:
+                        st.caption("Add images to publish (or check folder) to enable Start Publishing.")
+                    else:
+                        st.caption("Complete prerequisites above to enable Start Publishing.")
+
+            if start_clicked:
                 try:
                     from integrations.pinterest.workflow_logger import get_workflow_logger
                     workflow_logger = get_workflow_logger()
@@ -144,7 +152,7 @@ def render_pinterest_tab(workflow_state: dict | None) -> None:
                         selected = preview.get("selected_images") or []
                         design_state = {**state, "title": preview["title"], "description": preview["description"]}
                         folder = config["images_folder"]
-                        from utils.folder_monitor import get_images_in_folder
+                        from features.image_generation.monitor import get_images_in_folder
                         all_in_folder = get_images_in_folder(folder)
                         no_exclusions = len(selected) == 0 or len(selected) == len(all_in_folder)
                         has_book_config = (Path(folder) / "book_config.json").exists()

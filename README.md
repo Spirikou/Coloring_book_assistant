@@ -133,6 +133,14 @@ Coloring_book_assistant/
 - **AI Model**: OpenAI GPT-4o-mini via LangChain
 - **Browser**: Playwright connects to Brave with `--remote-debugging-port=9222` for Midjourney, Canva, and Pinterest automation
 
+## 📚 Documentation
+
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** – Entry points, module layout, state and config, path handling
+- **[docs/WORKFLOW_5_DESIGNS_AND_PARALLELISATION.md](docs/WORKFLOW_5_DESIGNS_AND_PARALLELISATION.md)** – How to run multiple designs and what runs in parallel
+- **[docs/UI_FULL_ANALYSIS_AND_IMPROVEMENTS.md](docs/UI_FULL_ANALYSIS_AND_IMPROVEMENTS.md)** – UI/UX analysis and improvements
+- **[docs/REFACTORING_ANALYSIS_AND_RECOMMENDATIONS.md](docs/REFACTORING_ANALYSIS_AND_RECOMMENDATIONS.md)** – Browser/config refactoring and options
+- **[docs/REFACTORING_REVIEW_CLEAN_AND_TIDY.md](docs/REFACTORING_REVIEW_CLEAN_AND_TIDY.md)** – Refactoring review for keeping the project clean
+
 ## 📄 License
 
 This project is open source and available under the MIT License.

@@ -64,6 +64,10 @@ Pinterest Publishing tab --> published pins (browser)
   - `pinterest_publish/` – Pinterest config and `publish_YYYYMMDD_HHMMSS/` session folders
   - `config/` – Browser slots, jobs (from core/browser_config, core/jobs)
 
+## Path handling
+
+Use `pathlib.Path` for folder and file paths inside application logic (iterating, joining, checking existence). Convert to `str` at persistence boundaries (e.g. JSON, DB) and when passing paths to UI or external APIs that expect strings. This keeps behaviour consistent across platforms and avoids mixing Path/str in the same flow.
+
 ## Migration from Previous Layout
 
 If you had `saved_designs/` or `pinterest_publish/` at project root and want to use a dedicated output folder, set `CB_OUTPUT_DIR=output` (or your path) and move existing data into that folder.

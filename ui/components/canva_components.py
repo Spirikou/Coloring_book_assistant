@@ -1,6 +1,7 @@
 """Reusable UI components for Canva tab."""
 
 import streamlit as st
+from core.browser_config import get_port_for_role
 from integrations.pinterest.antivirus_check import run_full_check
 from ui.components.shared_checks import render_combined_checks, BROWSER_STATUS_KEY
 
@@ -25,7 +26,7 @@ def render_canva_prerequisites_check(state: dict) -> dict:
     uploaded_images = state.get("uploaded_images", [])
     images_ready = state.get("images_ready", False)
     
-    from utils.folder_monitor import get_images_in_folder
+    from features.image_generation.monitor import get_images_in_folder
     if images_folder_path:
         folder_images = get_images_in_folder(images_folder_path)
         has_images = len(folder_images) > 0
@@ -88,27 +89,19 @@ def render_canva_prerequisites_check(state: dict) -> dict:
 
 
 def render_canva_configuration_section(state: dict) -> dict:
-    """Render configuration - images folder from state (read-only, same as Pinterest), page size, layout options."""
-    st.subheader("Configuration")
-    
+    """Render configuration - images folder from state (read-only), page size and layout on one row."""
     images_folder = state.get("images_folder_path", "")
     if images_folder:
-        from utils.folder_monitor import get_images_in_folder
+        from features.image_generation.monitor import get_images_in_folder
         folder_images = get_images_in_folder(images_folder)
         image_count = len(folder_images)
-        
-        if image_count > 0:
-            st.success(f"**Images Folder (same as Pinterest):** `{images_folder}`\n\n✓ {image_count} images found")
-        else:
-            st.warning(f"**Images Folder:** `{images_folder}`\n\n○ No images found in this folder")
+        st.caption(f"**Images folder (same as Pinterest):** `{images_folder}` — {image_count} images" if image_count > 0 else f"**Images folder:** `{images_folder}` — no images found")
     else:
-        st.warning("No images folder set. Please set the folder path in the Image Generation tab first.")
-    
-    st.caption("Uses the same images folder as Pinterest Publishing - no separate folder selection.")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
+        st.caption("No images folder set. Set folder in Image Generation tab.")
+
+    # One row: Page size, Margin %, Outline height %, Blank between
+    col_page, col_margin, col_outline, col_blank = st.columns([2, 1, 1, 1])
+    with col_page:
         page_size = st.text_input(
             "Page Size (inches)",
             value=state.get("canva_page_size", "8.625x8.75"),
@@ -116,6 +109,7 @@ def render_canva_configuration_section(state: dict) -> dict:
             key="canva_page_size_input",
             placeholder="8.625x8.75"
         )
+    with col_margin:
         margin_percent = st.number_input(
             "Margin %",
             min_value=0.0,
@@ -124,8 +118,7 @@ def render_canva_configuration_section(state: dict) -> dict:
             step=0.5,
             key="canva_margin_input"
         )
-    
-    with col2:
+    with col_outline:
         outline_height_percent = st.number_input(
             "Outline Height %",
             min_value=0.0,
@@ -134,12 +127,14 @@ def render_canva_configuration_section(state: dict) -> dict:
             step=0.5,
             key="canva_outline_input"
         )
+    with col_blank:
         blank_between = st.checkbox(
-            "Add blank page between images",
+            "Blank between",
             value=state.get("canva_blank_between", True),
-            key="canva_blank_between_input"
+            key="canva_blank_between_input",
+            help="Add blank page between images",
         )
-    
+
     return {
         "images_folder": images_folder,
         "page_size": page_size or "8.625x8.75",
@@ -178,34 +173,32 @@ def render_canva_progress_display(progress: dict):
 
 
 def render_canva_results_summary(results: dict):
-    """Render design results summary."""
+    """Render design results summary. Open in Canva on same row as success message."""
     if not results:
         return
-    
+
     st.subheader("Results Summary")
-    
+
     col1, col2, col3, col4 = st.columns(4)
-    
     with col1:
         st.metric("Total Images", results.get("total_images", 0))
-    
     with col2:
         st.metric("Successful", results.get("successful", 0), delta_color="normal")
-    
     with col3:
         st.metric("Failed", results.get("failed", 0), delta_color="inverse")
-    
     with col4:
         st.metric("Total Pages", results.get("total_pages", 0))
-    
+
     message = results.get("message", "")
+    design_url = results.get("design_url", "")
     if results.get("success", False):
-        st.success(message)
-        
-        design_url = results.get("design_url", "")
-        if design_url:
-            st.markdown("**Design URL:**")
-            st.link_button("Open in Canva", design_url, type="primary")
+        # Success message and Open in Canva on same row
+        col_msg, col_open = st.columns([2, 1])
+        with col_msg:
+            st.success(message)
+        with col_open:
+            if design_url:
+                st.link_button("Open in Canva", design_url, type="primary", use_container_width=True)
     else:
         st.error(message)
     
@@ -261,7 +254,8 @@ def render_canva_antivirus_check() -> dict:
             st.success("✓ **Playwright Installed**")
     else:
         st.success("✓ **Playwright Installed**")
-        st.caption("Using existing browser connection (same port 9222 as Pinterest)")
+        canva_port = get_port_for_role("canva")
+        st.caption(f"Using existing browser connection (port {canva_port}).")
     
     if check_results["recommendations"]:
         st.markdown("**Recommendations:**")

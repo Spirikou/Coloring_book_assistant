@@ -176,9 +176,12 @@ def get_browser_user_data_dir() -> str:
     return BROWSER_USER_DATA_DIRS.get(BROWSER_TYPE, BROWSER_USER_DATA_DIRS["chrome"])
 
 
-def get_browser_startup_command() -> str:
-    """Get the PowerShell command to start the browser with debugging."""
+def get_browser_startup_command(port: int | None = None) -> str:
+    """Get the PowerShell command to start the browser with debugging.
+    If port is None, uses DEBUG_PORT. Callers should pass get_port_for_role(...) for slot-aware launch.
+    """
     browser_path = get_browser_path()
     user_data_dir = get_browser_user_data_dir()
-    return f'& "{browser_path}" --remote-debugging-port={DEBUG_PORT} --user-data-dir="{user_data_dir}" --profile-directory={BROWSER_PROFILE}'
+    p = port if port is not None else DEBUG_PORT
+    return f'& "{browser_path}" --remote-debugging-port={p} --user-data-dir="{user_data_dir}" --profile-directory={BROWSER_PROFILE}'
 

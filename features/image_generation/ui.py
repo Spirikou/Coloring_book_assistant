@@ -235,14 +235,19 @@ def _render_system_and_prerequisites(settings: dict) -> dict:
     if not browser_connected:
         issue_count = max(issue_count, 1)
 
+    # One-line status outside expander so users see readiness at a glance
     col1, col2 = st.columns([4, 1])
     with col1:
-        if issue_count == 0 and browser_connected:
-            st.success("Ready")
-        elif issue_count > 0:
-            st.warning(f"{issue_count} issue(s) – expand for details")
+        if browser_connected:
+            status_line = "Browser: ✓ Connected"
+            if issue_count > 0:
+                status_line += f" · {issue_count} issue(s) – expand for details"
+            st.success(status_line)
         else:
-            st.info("Complete prerequisites below")
+            status_line = "Browser: Not connected"
+            if issue_count > 0:
+                status_line += f" · {issue_count} issue(s) – expand for details"
+            st.warning(status_line)
     with col2:
         if st.button("Refresh", key="mj_refresh_system_btn", help="Refresh checks"):
             st.session_state[BROWSER_STATUS_KEY] = check_browser_connection(port)
@@ -259,7 +264,7 @@ def _render_system_and_prerequisites(settings: dict) -> dict:
                 f"• **Browser:** ✓ Connected on port {browser_status.get('port', port)}"
             )
         else:
-            summary_items.append("• **Browser:** Not connected (port 9222)")
+            summary_items.append(f"• **Browser:** Not connected (port {port})")
         st.caption("\n".join(summary_items))
 
         st.markdown("**Browser connection**")
@@ -267,7 +272,7 @@ def _render_system_and_prerequisites(settings: dict) -> dict:
             st.success(f"Browser connected on port {port}")
             st.caption("Log in to Midjourney.com in the browser, then click Publish above.")
         else:
-            st.warning("No browser detected on port 9222.")
+            st.warning(f"No browser detected on port {port}.")
             st.caption(
                 "Use **Launch Browser** to start a dedicated automation window (separate profile, so it works even if Brave is already open). "
                 "Log in to Midjourney.com in that window. Or start manually:"
@@ -839,25 +844,13 @@ def _render_downloaded_images_gallery(
         except Exception:
             pass
 
-    col_title, col_open, col_save, col_analyze, col_delete_sel, col_delete_all = st.columns([2, 1, 1, 1, 1, 1])
+    # Row 1: title / folder name, Open folder, Save design
+    col_title, col_open, col_save = st.columns([3, 1, 1])
     with col_title:
         st.subheader("Downloaded Cover Images" if key_prefix == "cover_" else "Downloaded Images")
         st.caption("Your images appear here. Use Analyze to check quality with AI.")
-        sel_all, desel_all = st.columns(2)
-        with sel_all:
-            if st.button("Select all", key=f"mj_sel_all_{key_prefix}", type="secondary"):
-                for p in paths:
-                    st.session_state[f"mj_sel_{p.name}"] = True
-                st.session_state["mj_selected_images"][str(folder)] = {p.name for p in paths}
-                st.rerun()
-        with desel_all:
-            if st.button("Deselect all", key=f"mj_desel_all_{key_prefix}", type="secondary"):
-                for p in paths:
-                    st.session_state.pop(f"mj_sel_{p.name}", None)
-                st.session_state["mj_selected_images"][str(folder)] = set()
-                st.rerun()
     with col_open:
-        if folder and st.button("Open folder", key=f"mj_open_folder_btn_{key_prefix}", type="secondary"):
+        if folder and st.button("Open folder", key=f"mj_open_folder_btn_{key_prefix}", type="secondary", use_container_width=True):
             _open_folder_in_explorer(folder)
     with col_save:
         from core.persistence import save_design_package
@@ -888,12 +881,26 @@ def _render_downloaded_images_gallery(
                 disabled=True,
                 help="Save from the Inside images section above to include both inside and cover." if is_cover_gallery else "No images or no design metadata",
             )
+    # Row 2: Analyze, Select all, Deselect all, Delete selected, Delete all
+    col_analyze, col_sel_all, col_desel_all, col_delete_sel, col_delete_all = st.columns(5)
     with col_analyze:
-        if st.button("Analyze images", key=f"mj_analyze_btn_{key_prefix}", type="secondary", help="Run AI quality check on all images"):
+        if st.button("Analyze", key=f"mj_analyze_btn_{key_prefix}", type="secondary", use_container_width=True, help="Run AI quality check on all images"):
             st.session_state["mj_analyze_requested"] = True
             st.rerun()
+    with col_sel_all:
+        if st.button("Select all", key=f"mj_sel_all_{key_prefix}", type="secondary", use_container_width=True):
+            for p in paths:
+                st.session_state[f"mj_sel_{p.name}"] = True
+            st.session_state["mj_selected_images"][str(folder)] = {p.name for p in paths}
+            st.rerun()
+    with col_desel_all:
+        if st.button("Deselect all", key=f"mj_desel_all_{key_prefix}", type="secondary", use_container_width=True):
+            for p in paths:
+                st.session_state.pop(f"mj_sel_{p.name}", None)
+            st.session_state["mj_selected_images"][str(folder)] = set()
+            st.rerun()
     with col_delete_sel:
-        if selected_set and st.button(f"Delete selected ({len(selected_set)})", key=f"mj_del_selected_{key_prefix}", type="secondary"):
+        if selected_set and st.button(f"Delete selected ({len(selected_set)})", key=f"mj_del_selected_{key_prefix}", type="secondary", use_container_width=True):
             deleted_names = set()
             for p in paths:
                 if p.name in selected_set:
@@ -913,20 +920,38 @@ def _render_downloaded_images_gallery(
                 st.session_state["mj_selected_images"][str(folder)] = set()
             st.rerun()
     with col_delete_all:
-        if st.button("Delete all", key=f"mj_del_all_downloaded_{key_prefix}", type="secondary"):
-            _do_delete_all(paths, folder, mj_status)
+        if st.button("Delete all", key=f"mj_del_all_downloaded_{key_prefix}", type="secondary", use_container_width=True):
+            st.session_state["mj_confirm_delete_all"] = key_prefix
+            st.session_state["mj_confirm_delete_all_folder"] = str(folder) if folder else ""
             st.rerun()
+    if st.session_state.get("mj_confirm_delete_all") == key_prefix:
+        n_imgs = len(paths)
+        st.warning(f"**Delete all {n_imgs} images?** This cannot be undone.")
+        cd1, cd2 = st.columns(2)
+        with cd1:
+            if st.button("Confirm delete all", key=f"mj_confirm_del_all_btn_{key_prefix}", type="primary"):
+                _do_delete_all(paths, folder, mj_status)
+                st.session_state.pop("mj_confirm_delete_all", None)
+                st.session_state.pop("mj_confirm_delete_all_folder", None)
+                st.rerun()
+        with cd2:
+            if st.button("Cancel", key=f"mj_cancel_del_all_btn_{key_prefix}"):
+                st.session_state.pop("mj_confirm_delete_all", None)
+                st.session_state.pop("mj_confirm_delete_all_folder", None)
+                st.rerun()
 
-    # Delete below threshold (only when evaluations exist)
+    # Delete below threshold (only when evaluations exist): one row = threshold (narrow) + button
     with st.expander("Image quality", expanded=False):
-        threshold = st.number_input(
-            "Min score to keep",
-            min_value=0,
-            max_value=100,
-            value=IMAGE_MIN_SCORE_THRESHOLD,
-            key=f"mj_score_threshold_{key_prefix}",
-            help="Images with score below this will be deleted when you click 'Delete below threshold'.",
-        )
+        col_thresh, col_del_btn = st.columns([2, 3])
+        with col_thresh:
+            threshold = st.number_input(
+                "Min score to keep",
+                min_value=0,
+                max_value=100,
+                value=IMAGE_MIN_SCORE_THRESHOLD,
+                key=f"mj_score_threshold_{key_prefix}",
+                help="Images with score below this will be deleted when you click 'Delete below threshold'.",
+            )
         if evaluations:
             to_delete = [
                 p for p in paths
@@ -934,25 +959,26 @@ def _render_downloaded_images_gallery(
                 and evaluations[p.name].get("score") is not None
                 and evaluations[p.name]["score"] < threshold
             ]
-            if to_delete and st.button("Delete below threshold", key=f"mj_del_below_threshold_{key_prefix}", type="secondary"):
-                deleted_names = set()
-                for p in to_delete:
-                    try:
-                        p.unlink(missing_ok=True)
-                        deleted_names.add(p.name)
-                    except Exception:
-                        pass
-                if deleted_names:
-                    _prune_evaluations_for_deleted(folder, deleted_names)
-                    mj_status["downloaded_paths"] = [
-                        x for x in mj_status.get("downloaded_paths", [])
-                        if Path(x).name not in deleted_names
-                    ]
-                    for name in deleted_names:
-                        st.session_state.pop(f"mj_sel_{name}", None)
-                    if str(folder) in st.session_state.get("mj_selected_images", {}):
-                        st.session_state["mj_selected_images"][str(folder)] -= deleted_names
-                st.rerun()
+            with col_del_btn:
+                if to_delete and st.button("Delete below threshold", key=f"mj_del_below_threshold_{key_prefix}", type="secondary", use_container_width=True):
+                    deleted_names = set()
+                    for p in to_delete:
+                        try:
+                            p.unlink(missing_ok=True)
+                            deleted_names.add(p.name)
+                        except Exception:
+                            pass
+                    if deleted_names:
+                        _prune_evaluations_for_deleted(folder, deleted_names)
+                        mj_status["downloaded_paths"] = [
+                            x for x in mj_status.get("downloaded_paths", [])
+                            if Path(x).name not in deleted_names
+                        ]
+                        for name in deleted_names:
+                            st.session_state.pop(f"mj_sel_{name}", None)
+                        if str(folder) in st.session_state.get("mj_selected_images", {}):
+                            st.session_state["mj_selected_images"][str(folder)] -= deleted_names
+                    st.rerun()
 
     if st.session_state.get("mj_analyze_requested"):
         st.session_state["mj_analyze_requested"] = False
@@ -1066,6 +1092,22 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
     mj_status = st.session_state.mj_status
 
     st.markdown("## Image Generation")
+    from ui.components.design_selector import render_tab_design_selector
+    render_tab_design_selector("img_gen", persist_to_workflow=True)
+    if state is None:
+        st.info("Load a design package above or create one in Design Generation.")
+        return
+    st.markdown("---")
+
+    # One-line summary at top (medium recommendation)
+    title = (state.get("title") or "Untitled")[:40]
+    n_prompts = len(state.get("midjourney_prompts") or [])
+    n_cover = len(state.get("cover_prompts") or [])
+    out_folder = (state.get("images_folder_path") or str(GENERATED_IMAGES_DIR)).strip()
+    st.caption(
+        f"**Design:** {title}{'…' if len(state.get('title') or '') > 40 else ''}  ·  **Prompts:** {n_prompts} interior, {n_cover} cover  ·  **Folder:** `{Path(out_folder).name}`"
+    )
+
     mj_automated_process = st.session_state.get("mj_automated_process")
     automated_running = mj_automated_process is not None and mj_automated_process.is_alive()
     # Sync from shared: when process is running OR when it just finished (so we get final status)
@@ -1174,15 +1216,22 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
         or state.get("images_folder_path")
         or str(GENERATED_IMAGES_DIR)
     )
-    output_folder = st.text_input(
-        "Output folder",
-        value=default_folder,
-        key="mj_output_folder",
-        help="Where Midjourney images are saved and where we monitor for selection.",
-    )
+    col_out, col_open = st.columns([17, 3])
+    with col_out:
+        output_folder = st.text_input(
+            "Output folder",
+            value=default_folder,
+            key="mj_output_folder",
+            help="Where Midjourney images are saved and where we monitor for selection.",
+        )
+    with col_open:
+        st.markdown("")  # align button with input
+        if st.button("Open folder", key="mj_open_output_folder_btn", type="secondary", use_container_width=True):
+            _open_folder_in_explorer(Path((output_folder or default_folder).strip() or str(GENERATED_IMAGES_DIR)))
     output_folder = (output_folder or str(GENERATED_IMAGES_DIR)).strip() or str(GENERATED_IMAGES_DIR)
     settings["output_folder"] = output_folder
     state["images_folder_path"] = output_folder
+    st.caption(f"Files will be saved here: `{output_folder}`")
 
     base_output = Path(output_folder)
 
@@ -1203,9 +1252,44 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
         with st.expander("Run multiple designs (batch)", expanded=automated_running and mj_status.get("batch_total", 0) > 1):
             st.caption(
                 "**Full auto per design:** For each selected design, runs Publish → Upscale all → Download. "
-                "Designs run one after the other, each in its own subfolder. "
-                "Includes designs from this session and saved design packages."
+                "Designs run one after the other, each in its own subfolder."
             )
+            # Actions on first line: Select all, Clear, Run, Quick run (use session state for enable state)
+            batch_selected_indices = st.session_state.get("mj_batch_selected_indices", [])
+            batch_designs_for_buttons = [designs_for_batch[i] for i in batch_selected_indices if i < len(designs_for_batch)]
+            batch_ready = (
+                batch_designs_for_buttons
+                and browser_connected
+                and button_coords
+                and not automated_running
+                and not step_running
+            )
+            col_sel, col_clr, col_run, col_quick, _ = st.columns([1, 1, 1, 1, 4])
+            with col_sel:
+                if st.button("Select all", key="mj_batch_select_all"):
+                    st.session_state.mj_batch_selected_indices = list(range(len(designs_for_batch)))
+                    st.rerun()
+            with col_clr:
+                if st.button("Clear", key="mj_batch_clear"):
+                    st.session_state.mj_batch_selected_indices = []
+                    st.rerun()
+            with col_run:
+                run_batch_clicked = st.button(
+                    "Run",
+                    type="primary",
+                    key="mj_run_batch_btn",
+                    disabled=not batch_ready,
+                    help="Run full automated pipeline for selected design(s), each in its own subfolder.",
+                )
+            with col_quick:
+                quick_run_clicked = st.button(
+                    "Quick run",
+                    key="mj_batch_quick_run_btn",
+                    disabled=not batch_ready,
+                    help="Run first 7 prompts per design (publish → upscale → download) to preview.",
+                )
+            st.caption("Select designs to run below, then click Run or Quick run.")
+
             for idx, design in enumerate(designs_for_batch):
                 title = design.get("title", "Untitled") or "Untitled"
                 concept = design.get("concept_source", {})
@@ -1221,40 +1305,7 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
                     batch_selected.append(idx)
             st.session_state.mj_batch_selected_indices = batch_selected
 
-            col_sel, col_clr, _ = st.columns([1, 1, 4])
-            with col_sel:
-                if st.button("Select all", key="mj_batch_select_all"):
-                    st.session_state.mj_batch_selected_indices = list(range(len(designs_for_batch)))
-                    st.rerun()
-            with col_clr:
-                if st.button("Clear", key="mj_batch_clear"):
-                    st.session_state.mj_batch_selected_indices = []
-                    st.rerun()
-
             batch_designs = [designs_for_batch[i] for i in batch_selected if i < len(designs_for_batch)]
-            batch_ready = (
-                batch_designs
-                and browser_connected
-                and button_coords
-                and not automated_running
-                and not step_running
-            )
-            col_run, col_quick = st.columns(2)
-            with col_run:
-                run_batch_clicked = st.button(
-                    "Run",
-                    type="primary",
-                    key="mj_run_batch_btn",
-                    disabled=not batch_ready,
-                    help=f"Run full automated pipeline for {len(batch_designs)} design(s), each in its own subfolder.",
-                )
-            with col_quick:
-                quick_run_clicked = st.button(
-                    "Quick run",
-                    key="mj_batch_quick_run_btn",
-                    disabled=not batch_ready,
-                    help="Run first 7 prompts per design (publish → upscale → download) to preview.",
-                )
             batch_quick_run_7 = quick_run_clicked
             if (run_batch_clicked or quick_run_clicked) and batch_designs and browser_connected and button_coords:
                 health = run_health_checks(
@@ -1392,7 +1443,7 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
             help="After interior pipeline finishes, run the same pipeline for cover prompts (sequential).",
         )
 
-    col_pub, col_stop_pub = st.columns([4, 1])
+    col_pub, col_prompts_n, col_stop_pub = st.columns([3, 1, 1])
     with col_pub:
         pub_clicked = st.button(
             "Publish",
@@ -1401,78 +1452,81 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
             disabled=not (prompts and browser_connected and button_coords) or pub_process_alive or automated_running,
             help=f"Submit prompts only.{est_text}" if not run_automated else f"Full pipeline{est_text_auto}",
         )
-        if pub_clicked and prompts and browser_connected and button_coords:
-            # Enforce global serialization for Midjourney image generation.
-            if has_running_image_job():
-                st.error(
-                    "An image generation job is already running. "
-                    "Please wait for it to complete before starting another Midjourney run."
-                )
-                return
-            design_path = state.get("design_package_path", "") if isinstance(state, dict) else ""
-            try:
-                job = create_job(design_path or "", action="image", status="running")
-                st.session_state["mj_image_job_id"] = job.id
-            except Exception as e:
-                st.error(f"Could not register image job: {e}")
-                return
-            health = run_health_checks(
-                output_folder=Path(output_folder),
-                browser_port=settings["browser_debug_port"],
-            )
-            if health.has_errors():
-                st.error("Health check failed. Fix errors before starting.")
-                st.stop()
-            viewport = cfg.get("viewport") or {"width": 1920, "height": 1080}
-            coord_vp = cfg.get("coordinates_viewport") or {"width": 1920, "height": 1080}
+    with col_prompts_n:
+        st.caption(f"Prompts: {len(prompts)}" if prompts else "Prompts: 0")
 
-            if run_automated:
-                st.session_state.mj_automated_stop_flag["stop"] = False
-                # Quick run: limit to first 7 prompts for preview
-                prompts_to_run = prompts[:7] if quick_run_7 else prompts
-                # Cover prompts from session (cover section text area from previous run)
-                cover_raw = st.session_state.get(
-                    "mj_cover_prompts_area",
-                    "\n".join(state.get("cover_prompts", [])) if state.get("cover_prompts") else "",
-                )
-                cover_prompts_list_for_run = [
-                    line.strip() for line in (cover_raw or "").strip().splitlines() if line.strip()
-                ]
-                if then_run_cover and cover_prompts_list_for_run:
-                    # Sequential: interior then cover in one process
-                    for key in ("mj_automated_cover_shared", "mj_automated_cover_publish_progress", "mj_automated_cover_uxd_progress", "mj_automated_cover_download_progress"):
-                        st.session_state.pop(key, None)
-                    shared = st.session_state.mj_automated_shared
-                    shared["publish_status"] = "idle"
-                    shared["publish_error"] = ""
-                    shared["uxd_action_status"] = "idle"
-                    shared["uxd_action_error"] = ""
-                    shared["download_status"] = "idle"
-                    shared["download_error"] = ""
-                    shared["downloaded_paths"] = []
-                    cover_shared = st.session_state.mj_cover_automated_shared
-                    cover_shared["publish_status"] = "idle"
-                    cover_shared["publish_error"] = ""
-                    cover_shared["uxd_action_status"] = "idle"
-                    cover_shared["uxd_action_error"] = ""
-                    cover_shared["download_status"] = "idle"
-                    cover_shared["download_error"] = ""
-                    cover_shared["downloaded_paths"] = []
-                    cover_folder = Path(output_folder) / "cover"
-                    cover_folder.mkdir(parents=True, exist_ok=True)
-                    (
-                        proc,
-                        manager,
-                        mgr_stop,
-                        mgr_interior_shared,
-                        mgr_cover_shared,
-                        mgr_interior_publish,
-                        mgr_interior_uxd,
-                        mgr_interior_download,
-                        mgr_cover_publish,
-                        mgr_cover_uxd,
-                        mgr_cover_download,
-                    ) = run_automated_interior_then_cover_process(
+    if pub_clicked and prompts and browser_connected and button_coords:
+        # Enforce global serialization for Midjourney image generation.
+        if has_running_image_job():
+            st.error(
+                "An image generation job is already running. "
+                "Please wait for it to complete before starting another Midjourney run."
+            )
+            return
+        design_path = state.get("design_package_path", "") if isinstance(state, dict) else ""
+        try:
+            job = create_job(design_path or "", action="image", status="running")
+            st.session_state["mj_image_job_id"] = job.id
+        except Exception as e:
+            st.error(f"Could not register image job: {e}")
+            return
+        health = run_health_checks(
+            output_folder=Path(output_folder),
+            browser_port=settings["browser_debug_port"],
+        )
+        if health.has_errors():
+            st.error("Health check failed. Fix errors before starting.")
+            st.stop()
+        viewport = cfg.get("viewport") or {"width": 1920, "height": 1080}
+        coord_vp = cfg.get("coordinates_viewport") or {"width": 1920, "height": 1080}
+
+        if run_automated:
+            st.session_state.mj_automated_stop_flag["stop"] = False
+            # Quick run: limit to first 7 prompts for preview
+            prompts_to_run = prompts[:7] if quick_run_7 else prompts
+            # Cover prompts from session (cover section text area from previous run)
+            cover_raw = st.session_state.get(
+                "mj_cover_prompts_area",
+                "\n".join(state.get("cover_prompts", [])) if state.get("cover_prompts") else "",
+            )
+            cover_prompts_list_for_run = [
+                line.strip() for line in (cover_raw or "").strip().splitlines() if line.strip()
+            ]
+            if then_run_cover and cover_prompts_list_for_run:
+                # Sequential: interior then cover in one process
+                for key in ("mj_automated_cover_shared", "mj_automated_cover_publish_progress", "mj_automated_cover_uxd_progress", "mj_automated_cover_download_progress"):
+                    st.session_state.pop(key, None)
+                shared = st.session_state.mj_automated_shared
+                shared["publish_status"] = "idle"
+                shared["publish_error"] = ""
+                shared["uxd_action_status"] = "idle"
+                shared["uxd_action_error"] = ""
+                shared["download_status"] = "idle"
+                shared["download_error"] = ""
+                shared["downloaded_paths"] = []
+                cover_shared = st.session_state.mj_cover_automated_shared
+                cover_shared["publish_status"] = "idle"
+                cover_shared["publish_error"] = ""
+                cover_shared["uxd_action_status"] = "idle"
+                cover_shared["uxd_action_error"] = ""
+                cover_shared["download_status"] = "idle"
+                cover_shared["download_error"] = ""
+                cover_shared["downloaded_paths"] = []
+                cover_folder = Path(output_folder) / "cover"
+                cover_folder.mkdir(parents=True, exist_ok=True)
+                (
+                    proc,
+                    manager,
+                    mgr_stop,
+                    mgr_interior_shared,
+                    mgr_cover_shared,
+                    mgr_interior_publish,
+                    mgr_interior_uxd,
+                    mgr_interior_download,
+                    mgr_cover_publish,
+                    mgr_cover_uxd,
+                    mgr_cover_download,
+                ) = run_automated_interior_then_cover_process(
                         prompts_to_run,
                         Path(output_folder),
                         cover_prompts_list_for_run,
@@ -1488,74 +1542,74 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
                         st.session_state.mj_cover_publish_progress,
                         st.session_state.mj_cover_uxd_progress,
                         st.session_state.mj_cover_download_progress,
-                        viewport=viewport,
-                        coordinates_viewport=coord_vp,
-                        debug_show_clicks=debug_show_clicks,
-                    )
-                    st.session_state.mj_automated_process = proc
-                    st.session_state.mj_automated_manager = manager
-                    st.session_state.mj_automated_mgr_stop = mgr_stop
-                    st.session_state.mj_automated_shared = mgr_interior_shared
-                    st.session_state.mj_publish_progress = mgr_interior_publish
-                    st.session_state.mj_uxd_progress = mgr_interior_uxd
-                    st.session_state.mj_download_progress = mgr_interior_download
-                    st.session_state.mj_automated_cover_shared = mgr_cover_shared
-                    st.session_state.mj_automated_cover_publish_progress = mgr_cover_publish
-                    st.session_state.mj_automated_cover_uxd_progress = mgr_cover_uxd
-                    st.session_state.mj_automated_cover_download_progress = mgr_cover_download
-                else:
-                    shared = st.session_state.mj_automated_shared
-                    shared["publish_status"] = "idle"
-                    shared["publish_error"] = ""
-                    shared["uxd_action_status"] = "idle"
-                    shared["uxd_action_error"] = ""
-                    shared["download_status"] = "idle"
-                    shared["download_error"] = ""
-                    shared["downloaded_paths"] = []
-                    for key in ("mj_automated_cover_shared", "mj_automated_cover_publish_progress", "mj_automated_cover_uxd_progress", "mj_automated_cover_download_progress"):
-                        st.session_state.pop(key, None)
-                    proc, manager, mgr_stop, mgr_shared, mgr_publish, mgr_uxd, mgr_download = run_automated_process(
-                        prompts_to_run,
-                        button_coords,
-                        settings["browser_debug_port"],
-                        Path(output_folder),
-                        st.session_state.mj_automated_stop_flag,
-                        shared,
-                        st.session_state.mj_publish_progress,
-                        st.session_state.mj_uxd_progress,
-                        st.session_state.mj_download_progress,
-                        viewport=viewport,
-                        coordinates_viewport=coord_vp,
-                        debug_show_clicks=debug_show_clicks,
-                    )
-                    st.session_state.mj_automated_process = proc
-                    st.session_state.mj_automated_manager = manager
-                    st.session_state.mj_automated_mgr_stop = mgr_stop
-                    st.session_state.mj_automated_shared = mgr_shared
-                    st.session_state.mj_publish_progress = mgr_publish
-                    st.session_state.mj_uxd_progress = mgr_uxd
-                    st.session_state.mj_download_progress = mgr_download
-            else:
-                st.session_state.mj_publish_stop_flag["stop"] = False
-                mj_status["publish_status"] = "running"
-                mj_status["publish_error"] = ""
-                proc, manager, mgr_stop, mgr_progress, mgr_status = run_publish_process(
-                    prompts,
-                    button_coords,
-                    settings["browser_debug_port"],
-                    st.session_state.mj_publish_stop_flag,
-                    st.session_state.mj_publish_progress,
-                    mj_status,
                     viewport=viewport,
                     coordinates_viewport=coord_vp,
                     debug_show_clicks=debug_show_clicks,
                 )
-                st.session_state.mj_publish_process = proc
-                st.session_state.mj_publish_manager = manager
-                st.session_state.mj_publish_mgr_stop = mgr_stop
-                st.session_state.mj_publish_mgr_status = mgr_status
-                st.session_state.mj_publish_progress = mgr_progress
-            st.rerun()
+                st.session_state.mj_automated_process = proc
+                st.session_state.mj_automated_manager = manager
+                st.session_state.mj_automated_mgr_stop = mgr_stop
+                st.session_state.mj_automated_shared = mgr_interior_shared
+                st.session_state.mj_publish_progress = mgr_interior_publish
+                st.session_state.mj_uxd_progress = mgr_interior_uxd
+                st.session_state.mj_download_progress = mgr_interior_download
+                st.session_state.mj_automated_cover_shared = mgr_cover_shared
+                st.session_state.mj_automated_cover_publish_progress = mgr_cover_publish
+                st.session_state.mj_automated_cover_uxd_progress = mgr_cover_uxd
+                st.session_state.mj_automated_cover_download_progress = mgr_cover_download
+            else:
+                shared = st.session_state.mj_automated_shared
+                shared["publish_status"] = "idle"
+                shared["publish_error"] = ""
+                shared["uxd_action_status"] = "idle"
+                shared["uxd_action_error"] = ""
+                shared["download_status"] = "idle"
+                shared["download_error"] = ""
+                shared["downloaded_paths"] = []
+                for key in ("mj_automated_cover_shared", "mj_automated_cover_publish_progress", "mj_automated_cover_uxd_progress", "mj_automated_cover_download_progress"):
+                    st.session_state.pop(key, None)
+                proc, manager, mgr_stop, mgr_shared, mgr_publish, mgr_uxd, mgr_download = run_automated_process(
+                    prompts_to_run,
+                    button_coords,
+                    settings["browser_debug_port"],
+                    Path(output_folder),
+                    st.session_state.mj_automated_stop_flag,
+                    shared,
+                    st.session_state.mj_publish_progress,
+                    st.session_state.mj_uxd_progress,
+                    st.session_state.mj_download_progress,
+                    viewport=viewport,
+                    coordinates_viewport=coord_vp,
+                    debug_show_clicks=debug_show_clicks,
+                )
+                st.session_state.mj_automated_process = proc
+                st.session_state.mj_automated_manager = manager
+                st.session_state.mj_automated_mgr_stop = mgr_stop
+                st.session_state.mj_automated_shared = mgr_shared
+                st.session_state.mj_publish_progress = mgr_publish
+                st.session_state.mj_uxd_progress = mgr_uxd
+                st.session_state.mj_download_progress = mgr_download
+        else:
+            st.session_state.mj_publish_stop_flag["stop"] = False
+            mj_status["publish_status"] = "running"
+            mj_status["publish_error"] = ""
+            proc, manager, mgr_stop, mgr_progress, mgr_status = run_publish_process(
+                prompts,
+                button_coords,
+                settings["browser_debug_port"],
+                st.session_state.mj_publish_stop_flag,
+                st.session_state.mj_publish_progress,
+                mj_status,
+                viewport=viewport,
+                coordinates_viewport=coord_vp,
+                debug_show_clicks=debug_show_clicks,
+            )
+            st.session_state.mj_publish_process = proc
+            st.session_state.mj_publish_manager = manager
+            st.session_state.mj_publish_mgr_stop = mgr_stop
+            st.session_state.mj_publish_mgr_status = mgr_status
+            st.session_state.mj_publish_progress = mgr_progress
+        st.rerun()
     with col_stop_pub:
         if automated_running and st.button("Stop", key="mj_automated_stop_btn"):
             mgr_stop = st.session_state.get("mj_automated_mgr_stop")
@@ -1736,38 +1790,38 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
         uxd_process = st.session_state.mj_uxd_process
         uxd_process_alive = uxd_process is not None and uxd_process.is_alive()
 
-        uv_count = int(
-            st.number_input(
-                "Count",
-                min_value=1,
-                max_value=9999,
-                value=4,
-                key="mj_uxd_count",
-                help="Number of images to upscale or vary (no limit).",
-            )
-        )
-
-        col1, col2, col3, col4 = st.columns(4)
+        # One row: Count + four checkboxes + Run + Stop (all on same horizontal line)
+        total_new = 0  # computed after selected_keys
+        est_help = ""
+        col_count, col_cb1, col_cb2, col_cb3, col_cb4, col_run, col_stop_ux = st.columns([1, 2, 2, 2, 2, 2, 1])
         selected_keys: list[str] = []
-        with col1:
+        with col_count:
+            uv_count = int(
+                st.number_input(
+                    "Count",
+                    min_value=1,
+                    max_value=9999,
+                    value=4,
+                    key="mj_uxd_count",
+                    help="Number of images to upscale or vary (no limit).",
+                )
+            )
+        with col_cb1:
             if st.checkbox("Upscale Subtle", value=False, key="mj_uxd_subtle"):
                 selected_keys.append("upscale_subtle")
-        with col2:
+        with col_cb2:
             if st.checkbox("Upscale Creative", value=False, key="mj_uxd_creative"):
                 selected_keys.append("upscale_creative")
-        with col3:
+        with col_cb3:
             if st.checkbox("Vary Subtle", value=False, key="mj_uxd_vary_subtle"):
                 selected_keys.append("vary_subtle")
-        with col4:
+        with col_cb4:
             if st.checkbox("Vary Strong", value=False, key="mj_uxd_vary_strong"):
                 selected_keys.append("vary_strong")
-
         total_new = _total_uxd_images(selected_keys, uv_count) if selected_keys else 0
         sec_per_ux = cfg.get("waits", {}).get("seconds_per_upscale_estimate", 20)
         est_min_ux = total_new * sec_per_ux / 60 if total_new else 0
         est_help = f" (~{est_min_ux:.0f} min)" if total_new and est_min_ux >= 1 else ""
-
-        col_run, col_stop_ux = st.columns([4, 1])
         with col_run:
             uv_run_clicked = st.button(
                 "Run",
@@ -1863,19 +1917,20 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
         dl_process = st.session_state.mj_download_process
         dl_process_alive = dl_process is not None and dl_process.is_alive()
 
-        dl_count = int(
-            st.number_input(
-                "Images to download",
-                min_value=1,
-                max_value=9999,
-                value=4,
-                key="mj_dl_count",
-                help="Number of images to download.",
+        # One row: Count (narrow) + Download + Stop
+        col_dl_count, col_dl_btn, col_stop_dl = st.columns([2, 3, 1])
+        with col_dl_count:
+            dl_count = int(
+                st.number_input(
+                    "Images to download",
+                    min_value=1,
+                    max_value=9999,
+                    value=4,
+                    key="mj_dl_count",
+                    help="Number of images to download.",
+                )
             )
-        )
-
-        col_dl, col_stop_dl = st.columns([4, 1])
-        with col_dl:
+        with col_dl_btn:
             dl_clicked = st.button(
                 "Download",
                 key="mj_dl_btn",
@@ -2162,38 +2217,36 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
         cover_uxd_process = st.session_state.mj_cover_uxd_process
         cover_uxd_alive = cover_uxd_process is not None and cover_uxd_process.is_alive()
 
-        cover_uv_count = int(
-            st.number_input(
-                "Count",
-                min_value=1,
-                max_value=9999,
-                value=4,
-                key="mj_cover_uxd_count",
-                help="Number of images to upscale or vary (no limit).",
-            )
-        )
-
-        col1, col2, col3, col4 = st.columns(4)
+        # One row: Count + four checkboxes + Run + Stop (all on same horizontal line)
+        col_count, col_cb1, col_cb2, col_cb3, col_cb4, col_run, col_stop_ux = st.columns([1, 2, 2, 2, 2, 2, 1])
         cover_selected_keys = []
-        with col1:
+        with col_count:
+            cover_uv_count = int(
+                st.number_input(
+                    "Count",
+                    min_value=1,
+                    max_value=9999,
+                    value=4,
+                    key="mj_cover_uxd_count",
+                    help="Number of images to upscale or vary (no limit).",
+                )
+            )
+        with col_cb1:
             if st.checkbox("Upscale Subtle", value=False, key="mj_cover_uxd_subtle"):
                 cover_selected_keys.append("upscale_subtle")
-        with col2:
+        with col_cb2:
             if st.checkbox("Upscale Creative", value=False, key="mj_cover_uxd_creative"):
                 cover_selected_keys.append("upscale_creative")
-        with col3:
+        with col_cb3:
             if st.checkbox("Vary Subtle", value=False, key="mj_cover_uxd_vary_subtle"):
                 cover_selected_keys.append("vary_subtle")
-        with col4:
+        with col_cb4:
             if st.checkbox("Vary Strong", value=False, key="mj_cover_uxd_vary_strong"):
                 cover_selected_keys.append("vary_strong")
-
         total_new = _total_uxd_images(cover_selected_keys, cover_uv_count) if cover_selected_keys else 0
         sec_per_ux = cfg.get("waits", {}).get("seconds_per_upscale_estimate", 20)
         est_min_ux = total_new * sec_per_ux / 60 if total_new else 0
         est_help = f" (~{est_min_ux:.0f} min)" if total_new and est_min_ux >= 1 else ""
-
-        col_run, col_stop_ux = st.columns([4, 1])
         with col_run:
             uv_run_clicked = st.button(
                 "Run",
@@ -2271,19 +2324,19 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
         cover_dl_process = st.session_state.mj_cover_download_process
         cover_dl_alive = cover_dl_process is not None and cover_dl_process.is_alive()
 
-        cover_dl_count = int(
-            st.number_input(
-                "Images to download",
-                min_value=1,
-                max_value=9999,
-                value=4,
-                key="mj_cover_dl_count",
-                help="Number of images to download.",
+        col_dl_count, col_dl_btn, col_stop_dl = st.columns([2, 3, 1])
+        with col_dl_count:
+            cover_dl_count = int(
+                st.number_input(
+                    "Images to download",
+                    min_value=1,
+                    max_value=9999,
+                    value=4,
+                    key="mj_cover_dl_count",
+                    help="Number of images to download.",
+                )
             )
-        )
-
-        col_dl, col_stop_dl = st.columns([4, 1])
-        with col_dl:
+        with col_dl_btn:
             dl_clicked = st.button(
                 "Download",
                 key="mj_cover_dl_btn",

@@ -21,8 +21,8 @@ ROLE_OPTIONS = ["midjourney", "pinterest", "canva", "unused"]
 
 
 def _render_slot_editor(slot: BrowserSlot, index: int) -> BrowserSlot:
-    """Render UI controls for a single browser slot and return updated slot."""
-    col_role, col_port, col_label, col_test, col_launch = st.columns([2, 2, 3, 2, 2])
+    """Render UI controls for a single browser slot and return updated slot. Narrow port column."""
+    col_role, col_port, col_label, col_test, col_launch = st.columns([2, 1, 3, 2, 2])
     with col_role:
         role = st.selectbox(
             "Role",
@@ -87,7 +87,7 @@ def _render_current_jobs_section() -> None:
         return packages.get(path, path[:50] + "…" if len(path) > 50 else path)
 
     if not running and not recent:
-        st.caption("No jobs yet. Run design gen, image gen, or pipeline from other tabs.")
+        st.caption("No jobs yet. Go to **Design Generation**, **Image Generation**, or **Orchestration** to run workflows.")
         return
     if running:
         st.markdown("**Running**")
@@ -100,12 +100,24 @@ def _render_current_jobs_section() -> None:
     st.caption("See **Progress** tab for full history.")
 
 
+@st.fragment
 def render_config_tab() -> None:
-    """Render the configuration tab."""
+    """Render the configuration tab. Fragment so tab stays stable when other tabs rerun."""
     st.header("Configuration")
     st.caption("Configure browser slots, ports, and basic system settings.")
 
-    with st.expander("Current jobs", expanded=True):
+    # One-line job summary outside expander
+    jobs = list_jobs()
+    running = [j for j in jobs if j.status == "running"]
+    recent_count = len([j for j in jobs if j.status in ("completed", "failed", "queued")])
+    if running or recent_count:
+        summary_parts = []
+        if running:
+            summary_parts.append(f"**{len(running)} running**")
+        if recent_count:
+            summary_parts.append(f"{recent_count} recent")
+        st.caption("Jobs: " + ", ".join(summary_parts) + " — expand for details.")
+    with st.expander("Current jobs", expanded=bool(running)):
         _render_current_jobs_section()
 
     slots = load_slots()
@@ -127,19 +139,32 @@ def render_config_tab() -> None:
     with col_save:
         save_clicked = st.button("Save configuration", type="primary")
     with col_reset:
-        reset_clicked = st.button("Reset to defaults")
+        reset_clicked = st.button("Reset to defaults", type="secondary", help="Reset all browser slots to default ports and roles.")
 
     if reset_clicked:
-        from core.browser_config import _default_slots  # type: ignore[import]
-
-        defaults = _default_slots()
-        try:
-            validate_slots(defaults)
-            save_slots(defaults)
-            st.success("Browser slots reset to defaults.")
-        except ValidationError as e:
-            st.error(f"Default configuration invalid: {e}")
+        st.session_state["config_confirm_reset"] = True
         st.rerun()
+
+    if st.session_state.get("config_confirm_reset"):
+        st.warning("**Reset all browser slots to defaults?** This cannot be undone.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Confirm reset", key="config_confirm_reset_btn", type="primary"):
+                from core.browser_config import _default_slots  # type: ignore[import]
+                defaults = _default_slots()
+                try:
+                    validate_slots(defaults)
+                    save_slots(defaults)
+                    st.session_state.pop("config_confirm_reset", None)
+                    st.success("Browser slots reset to defaults.")
+                    st.rerun()
+                except ValidationError as e:
+                    st.error(f"Default configuration invalid: {e}")
+        with c2:
+            if st.button("Cancel", key="config_cancel_reset_btn"):
+                st.session_state.pop("config_confirm_reset", None)
+                st.rerun()
+        st.stop()
 
     if save_clicked:
         try:

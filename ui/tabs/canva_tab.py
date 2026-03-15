@@ -6,7 +6,6 @@ import streamlit as st
 from pathlib import Path
 
 from core.browser_config import check_browser_connection, get_port_for_role
-from core.persistence import list_design_packages, load_design_package
 from workflows.canva.designer import CanvaDesignWorkflow
 from ui.components.canva_components import (
     render_canva_combined_checks,
@@ -36,22 +35,13 @@ def render_canva_tab(workflow_state: dict | None) -> None:
     """Render the Canva Design tab. Uses workflow_state or a design loaded in this tab."""
     st.header("Canva Design")
 
-    state, from_workflow = _resolve_canva_state(workflow_state)
+    from ui.components.design_selector import render_tab_design_selector
+    render_tab_design_selector("canva", persist_to_workflow=True, tab_state_key=CANVA_TAB_STATE_KEY)
+    st.markdown("---")
+
+    state, from_workflow = _resolve_canva_state(st.session_state.get("workflow_state"))
     if state is None:
-        packages = list_design_packages()
-        if not packages:
-            st.info("Generate a design package first in the Design Generation tab.")
-            return
-        st.caption("Choose a design to run Canva for (or load one from the sidebar).")
-        options = [f"{p['title']} ({p['image_count']} imgs)" for p in packages]
-        idx = st.selectbox("Design package", range(len(options)), format_func=lambda i: options[i], key="canva_tab_select_pkg")
-        if st.button("Load for this tab", key="canva_tab_load_btn"):
-            loaded = load_design_package(packages[idx]["path"])
-            if loaded:
-                st.session_state[CANVA_TAB_STATE_KEY] = loaded
-                st.rerun()
-            else:
-                st.error("Failed to load")
+        st.info("Load a design package above or create one in the Design Generation tab.")
         return
 
     st.caption(f"Using: **{state.get('title', 'Untitled')}**" + (" (from sidebar)" if from_workflow else " (loaded in this tab)"))
@@ -118,7 +108,21 @@ def render_canva_tab(workflow_state: dict | None) -> None:
             st.error(f"Folder not found: `{config['images_folder']}`")
         else:
             can_create = prerequisites["all_ready"] and config["images_folder"] and browser_status.get("connected", False)
-            if st.button("Start Design Creation", disabled=not can_create, key="start_canva_design_btn"):
+            n_images = prerequisites.get("image_count", 0)
+            col_start, col_status = st.columns([2, 3])
+            with col_start:
+                start_clicked = st.button("Start Design Creation", disabled=not can_create, key="start_canva_design_btn", use_container_width=True)
+            with col_status:
+                if can_create:
+                    st.caption(f"Ready. {n_images} images.")
+                else:
+                    if not browser_status.get("connected", False):
+                        st.caption("Browser not connected.")
+                    elif not config["images_folder"]:
+                        st.caption("No images folder.")
+                    else:
+                        st.caption("Complete prerequisites above.")
+            if start_clicked and can_create:
                 try:
                     state["canva_status"] = "creating"
                     _persist_canva_state(state, from_workflow)

@@ -8,9 +8,9 @@ import subprocess
 from typing import Any, Dict
 
 try:
-    from .config import get_browser_startup_command, DEBUG_PORT, BROWSER_TYPE
+    from .config import get_browser_startup_command, BROWSER_TYPE
 except ImportError:
-    from integrations.pinterest.config import get_browser_startup_command, DEBUG_PORT, BROWSER_TYPE
+    from integrations.pinterest.config import get_browser_startup_command, BROWSER_TYPE
 
 from core.browser_config import check_browser_connection as _core_check_browser_connection
 from core.browser_config import get_port_for_role
@@ -32,12 +32,13 @@ def check_browser_connection(port: int) -> Dict[str, Any]:
 def launch_browser_with_debugging() -> Dict[str, Any]:
     """
     Automatically launch browser with debugging enabled.
-    Launches on DEBUG_PORT from config; after launch we check that port.
+    Uses the Pinterest slot port from core browser config so launch matches Config tab.
     """
     import time
 
+    port = get_port_for_role("pinterest")
     try:
-        command = get_browser_startup_command()
+        command = get_browser_startup_command(port=port)
         subprocess.Popen(
             ["powershell", "-Command", command],
             stdout=subprocess.PIPE,
@@ -45,12 +46,12 @@ def launch_browser_with_debugging() -> Dict[str, Any]:
             creationflags=subprocess.CREATE_NEW_CONSOLE,
         )
         time.sleep(2)
-        connection_status = check_browser_connection(DEBUG_PORT)
+        connection_status = check_browser_connection(port)
 
         if connection_status["connected"]:
             return {
                 "success": True,
-                "message": f"Browser launched successfully on port {DEBUG_PORT}",
+                "message": f"Browser launched successfully on port {port}",
                 "command": command,
                 "browser_type": BROWSER_TYPE,
             }

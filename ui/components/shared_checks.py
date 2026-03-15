@@ -6,8 +6,8 @@ from integrations.pinterest.antivirus_check import run_full_check
 from integrations.midjourney.automation.browser_utils import launch_browser_for_port
 
 
-def _render_checks_summary(check_results: dict, prerq: dict) -> None:
-    """Render a concise summary of all checks completed."""
+def _render_checks_summary(check_results: dict, prerq: dict, tab_name: str) -> None:
+    """Render a concise summary of all checks completed. tab_name used for port in 'not connected' message."""
     file_check = check_results["file_check"]
     playwright_check = check_results["playwright_check"]
     checks = prerq["checks"]
@@ -24,7 +24,8 @@ def _render_checks_summary(check_results: dict, prerq: dict) -> None:
         port = browser_status.get("port", "N/A")
         summary_items.append(f"• **Browser:** ✓ Connected on port {port}")
     else:
-        summary_items.append("• **Browser:** Not connected (port 9222)")
+        port = get_port_for_role(tab_name)
+        summary_items.append(f"• **Browser:** Not connected (port {port})")
     st.caption("\n".join(summary_items))
 
 
@@ -85,7 +86,7 @@ def _render_system_check_content(check_results: dict) -> None:
             st.markdown(f"  {rec}")
 
 
-BROWSER_STATUS_KEY = "browser_status"  # Shared by Canva and Pinterest (same port 9222)
+BROWSER_STATUS_KEY = "browser_status"  # Shared by Canva and Pinterest; port from get_port_for_role(tab)
 
 
 def _get_prerequisites_state(state: dict, tab_name: str) -> dict:
@@ -96,7 +97,7 @@ def _get_prerequisites_state(state: dict, tab_name: str) -> dict:
 
     images_folder_path = state.get("images_folder_path", "")
     selected_images = state.get("selected_images", [])
-    from utils.folder_monitor import get_images_in_folder
+    from features.image_generation.monitor import get_images_in_folder
     if images_folder_path:
         folder_images = get_images_in_folder(images_folder_path)
         has_images = len(folder_images) > 0
@@ -170,7 +171,7 @@ def _render_prerequisites_content(state: dict, tab_name: str, prerq: dict) -> No
     if checks["browser_connected"]:
         port = browser_status.get("port", "N/A")
         st.success(f"✓ Browser connected on port {port}")
-        st.caption("Check: Remote debugging port active. Start browser with: `--remote-debugging-port=9222`")
+        st.caption(f"Check: Remote debugging port active. Start browser with: `--remote-debugging-port={port}`")
     else:
         port = get_port_for_role(tab_name)
         st.warning("Browser not connected. Launch browser with remote debugging, then log in.")
@@ -239,7 +240,7 @@ def render_combined_checks(state: dict, tab_name: str) -> dict:
             st.rerun()
 
     with st.expander("System & Prerequisites", expanded=check_results["has_issues"] or not prerq["all_ready"]):
-        _render_checks_summary(check_results, prerq)
+        _render_checks_summary(check_results, prerq, tab_name)
         _render_system_check_content(check_results)
         st.divider()
         _render_prerequisites_content(state, tab_name, prerq)

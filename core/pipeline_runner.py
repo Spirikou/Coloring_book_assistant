@@ -226,7 +226,7 @@ def _run_pipeline_process(
                 design_state["description"] = design_state.get("description", "")
                 design_state["seo_keywords"] = design_state.get("seo_keywords", [])
 
-                from utils.folder_monitor import get_images_in_folder
+                from features.image_generation.monitor import get_images_in_folder
                 all_in_folder = get_images_in_folder(design_package_path)
                 has_book_config = (Path(design_package_path) / "book_config.json").exists()
                 use_direct = has_book_config and len(all_in_folder) > 0

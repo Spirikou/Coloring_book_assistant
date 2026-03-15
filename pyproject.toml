@@ -25,3 +25,8 @@ dependencies = [
 
 [project.scripts]
 midjourney-agent = "integrations.midjourney.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]

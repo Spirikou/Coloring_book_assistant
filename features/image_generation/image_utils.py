@@ -1,4 +1,4 @@
-"""Image handling utilities for thumbnails and validation."""
+"""Feature-level image helpers: thumbnails, validation, and image listing for the Image Generation tab."""
 
 import os
 from pathlib import Path

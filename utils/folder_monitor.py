@@ -1,4 +1,8 @@
-"""Compatibility shim: re-export from features.image_generation.monitor."""
+"""Compatibility shim: re-export from features.image_generation.monitor.
+
+DEPRECATED: Prefer importing from features.image_generation.monitor directly.
+This module is kept for backward compatibility only.
+"""
 
 from features.image_generation.monitor import (  # noqa: F401
     get_images_in_folder,

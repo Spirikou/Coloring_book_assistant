@@ -104,6 +104,29 @@ st.markdown("""
     .stAlert {
         border-radius: 8px;
     }
+    /* Accessibility: ensure status is not conveyed by color alone; improve contrast */
+    [data-testid="stAlert"] div[role="alert"],
+    .stSuccess, .stError, .stWarning {
+        border-left: 4px solid currentColor;
+    }
+    .stSuccess { border-left-color: #0d7d0d; }
+    .stError { border-left-color: #c52222; }
+    .stWarning { border-left-color: #b38600; }
+    [data-testid="stAlert"] p, [data-testid="stAlert"] label {
+        font-weight: 500;
+    }
+    
+    /* Vertical alignment: text and buttons on the same row sit on the same horizontal line */
+    [data-testid="column"] > div {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    /* Row of columns: align column contents to same horizontal line (vertical center) */
+    [data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        align-items: center !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -172,14 +195,7 @@ def main():
     with tab2:
         workflow_state = st.session_state.get("workflow_state")
         generated_designs = st.session_state.get("generated_designs", [])
-        if workflow_state:
-            render_image_generation_tab(workflow_state, generated_designs=generated_designs)
-        else:
-            from core.persistence import list_design_packages
-            packages = list_design_packages()
-            if packages:
-                render_design_package_selector(compact=False, key_prefix="img_gen_design")
-            st.info("Generate a design package first in the Design Generation tab.")
+        render_image_generation_tab(workflow_state, generated_designs=generated_designs)
     
     with tab3:
         workflow_state = st.session_state.get("workflow_state")

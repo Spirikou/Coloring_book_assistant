@@ -2,6 +2,7 @@
 
 import streamlit as st
 import json
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -29,6 +30,51 @@ from features.design_generation.constants import (
     MAX_CONCEPT_VARIATIONS,
     COVER_DEFAULT_ASPECT_RATIO,
 )
+
+
+def _run_batch_design_gen_background(
+    queue: list,
+    result_file: Path,
+    single_insert_idx: int | None,
+) -> None:
+    """Run batch design generation in a background thread; write results to result_file when done."""
+    n = len(queue)
+    workers = min(MAX_PARALLEL_DESIGNS, n)
+    results_by_index = [None] * n
+    failed_indices = []
+    try:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            future_to_index = {executor.submit(run_design_for_concept, concept): i for i, concept in enumerate(queue)}
+            for future in as_completed(future_to_index):
+                i = future_to_index[future]
+                try:
+                    state = future.result()
+                    try:
+                        path = create_design_package(state)
+                        state["design_package_path"] = path
+                        state["images_folder_path"] = path
+                    except Exception:
+                        pass
+                    results_by_index[i] = state
+                except Exception as e:
+                    failed_indices.append((i + 1, str(e)))
+                    results_by_index[i] = {}
+        # Serialize for JSON (convert paths and non-str types)
+        def _serialize_state(s: dict | None) -> dict | None:
+            if s is None:
+                return None
+            return json.loads(json.dumps(s, default=str))
+
+        out = {
+            "results": [_serialize_state(r) for r in results_by_index],
+            "single_insert_idx": single_insert_idx,
+            "failed": failed_indices,
+        }
+        with open(result_file, "w", encoding="utf-8") as f:
+            json.dump(out, f, indent=0)
+    except Exception as e:
+        with open(result_file, "w", encoding="utf-8") as f:
+            json.dump({"error": str(e), "results": [], "single_insert_idx": single_insert_idx, "failed": []}, f, default=str)
 
 
 def _save_or_update_design_package(state: dict, name: str | None = None) -> str:
@@ -227,7 +273,7 @@ def _render_generation_log(state: dict):
 
 def render_progress_overview(state: dict):
     """Render high-level progress overview with real-time status."""
-    st.markdown("### Workflow Progress")
+    st.markdown("### Design package progress")
 
     theme_status = state.get("theme_status", "pending")
     title_status = state.get("title_status", "pending")
@@ -350,8 +396,8 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
             height=80
         )
         
-        # All buttons on the same line
-        col1, col2, col3, col4, col5, col6 = st.columns(6)
+        # Row 1: single-component regeneration
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             if st.button("Title", key=f"{key_prefix}rerun_title_btn"):
                 with st.spinner("Regenerating title & description..."):
@@ -366,7 +412,7 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
                     except Exception as e:
                         st.error(str(e))
         with col2:
-            if st.button("Interior prompts", key=f"{key_prefix}rerun_prompts_btn"):
+            if st.button("Interior", key=f"{key_prefix}rerun_prompts_btn"):
                 with st.spinner("Regenerating interior (B&W) prompts..."):
                     try:
                         mods = {"regenerate": ["prompts"]}
@@ -379,7 +425,7 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
                     except Exception as e:
                         st.error(str(e))
         with col3:
-            if st.button("Cover prompts", key=f"{key_prefix}rerun_cover_btn"):
+            if st.button("Cover", key=f"{key_prefix}rerun_cover_btn"):
                 with st.spinner("Regenerating cover (color) prompts..."):
                     try:
                         mods = {"regenerate": ["cover_prompts"]}
@@ -404,7 +450,10 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
                         st.rerun()
                     except Exception as e:
                         st.error(str(e))
-        with col5:
+        # Row 2: regenerate all / full rerun
+        st.caption("Regenerate all components or full rerun from concept.")
+        col_all, col_full = st.columns(2)
+        with col_all:
             if st.button("All", key=f"{key_prefix}rerun_all_btn"):
                 with st.spinner("Regenerating all..."):
                     try:
@@ -417,7 +466,7 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
                         st.rerun()
                     except Exception as e:
                         st.error(str(e))
-        with col6:
+        with col_full:
             if st.button("Full Rerun", key=f"{key_prefix}rerun_full_btn"):
                 with st.spinner("Full rerun from concept..."):
                     try:
@@ -439,7 +488,9 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
         edited_title = st.text_input("Title", value=state.get("title", ""), key="edit_title", max_chars=100)
         edited_desc = st.text_area("Description", value=state.get("description", ""), key="edit_desc", height=150)
         keywords_list = state.get("seo_keywords", [])
-        edited_keywords = st.text_area("Keywords (one per line)", value="\n".join(keywords_list) if isinstance(keywords_list, list) else str(keywords_list), key="edit_keywords", height=100)
+        col_kw, col_save_btn = st.columns([8, 2])
+        with col_kw:
+            edited_keywords = st.text_area("Keywords (one per line)", value="\n".join(keywords_list) if isinstance(keywords_list, list) else str(keywords_list), key="edit_keywords", height=100)
         expanded_theme_edit = state.get("expanded_theme") or {}
         with st.expander("Theme & Artistic Style (advanced)", expanded=False):
             col1, col2 = st.columns(2)
@@ -478,19 +529,20 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
         state["description"] = edited_desc
         state["seo_keywords"] = [k.strip() for k in edited_keywords.split("\n") if k.strip()]
         st.session_state.workflow_state = state
-        if st.button("Save changes", key="save_edits_btn"):
-            if not edited_title.strip():
-                st.warning("Please enter a title before saving.")
-            elif not edited_desc.strip():
-                st.warning("Please enter a description before saving.")
-            else:
-                try:
-                    path = _save_or_update_design_package(state)
-                    st.success(f"Design saved to package `{Path(path).name}`")
-                    st.balloons()
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error saving: {e}")
+        with col_save_btn:
+            if st.button("Save changes", key="save_edits_btn", use_container_width=True):
+                if not edited_title.strip():
+                    st.warning("Please enter a title before saving.")
+                elif not edited_desc.strip():
+                    st.warning("Please enter a description before saving.")
+                else:
+                    try:
+                        path = _save_or_update_design_package(state)
+                        st.success(f"Design saved to package `{Path(path).name}`")
+                        st.balloons()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error saving: {e}")
     title = state.get("title", "")
     description = state.get("description", "")
     expanded_theme = state.get("expanded_theme", {})
@@ -527,54 +579,60 @@ def render_final_results_compact(state: dict, key_prefix: str = ""):
             st.markdown("**Description:**")
             st.write(description)
         else:
-            # No theme: first tab is Prompts (read-only, compact)
+            # No theme: first tab is Prompts (read-only, two columns)
             prompts = state.get("midjourney_prompts", [])
-            st.markdown(f"**Book interior prompts (black & white):** {len(prompts)}")
-            interior_text = "\n".join(f"{i}. {p}" for i, p in enumerate(prompts, 1))
-            st.text_area(
-                "Interior prompts",
-                value=interior_text,
-                height=180,
-                disabled=True,
-                label_visibility="collapsed",
-                key="prompts_interior_compact",
-            )
-            st.markdown(f"**Cover prompts (full color):** {len(state.get('cover_prompts', []))}")
             cover_prompts = state.get("cover_prompts", [])
-            cover_text = "\n".join(f"{i}. {p}" for i, p in enumerate(cover_prompts, 1))
-            st.text_area(
-                "Cover prompts",
-                value=cover_text,
-                height=100,
-                disabled=True,
-                label_visibility="collapsed",
-                key="prompts_cover_compact",
-            )
+            col_int, col_cov = st.columns(2)
+            with col_int:
+                st.markdown(f"**Interior (B&W) prompts:** {len(prompts)}")
+                interior_text = "\n".join(f"{i}. {p}" for i, p in enumerate(prompts, 1))
+                st.text_area(
+                    "Interior prompts",
+                    value=interior_text,
+                    height=180,
+                    disabled=True,
+                    label_visibility="collapsed",
+                    key="prompts_interior_compact",
+                )
+            with col_cov:
+                st.markdown(f"**Cover (color) prompts:** {len(cover_prompts)}")
+                cover_text = "\n".join(f"{i}. {p}" for i, p in enumerate(cover_prompts, 1))
+                st.text_area(
+                    "Cover prompts",
+                    value=cover_text,
+                    height=180,
+                    disabled=True,
+                    label_visibility="collapsed",
+                    key="prompts_cover_compact",
+                )
 
     if expanded_theme:
         with tab_prompts:
             prompts = state.get("midjourney_prompts", [])
-            st.markdown(f"**Book interior prompts (black & white):** {len(prompts)}")
-            interior_text = "\n".join(f"{i}. {p}" for i, p in enumerate(prompts, 1))
-            st.text_area(
-                "Interior prompts (tab)",
-                value=interior_text,
-                height=180,
-                disabled=True,
-                label_visibility="collapsed",
-                key="prompts_interior_tab",
-            )
-            st.markdown(f"**Cover prompts (full color):** {len(state.get('cover_prompts', []))}")
             cover_prompts = state.get("cover_prompts", [])
-            cover_text = "\n".join(f"{i}. {p}" for i, p in enumerate(cover_prompts, 1))
-            st.text_area(
-                "Cover prompts (tab)",
-                value=cover_text,
-                height=100,
-                disabled=True,
-                label_visibility="collapsed",
-                key="prompts_cover_tab",
-            )
+            col_int, col_cov = st.columns(2)
+            with col_int:
+                st.markdown(f"**Interior (B&W) prompts:** {len(prompts)}")
+                interior_text = "\n".join(f"{i}. {p}" for i, p in enumerate(prompts, 1))
+                st.text_area(
+                    "Interior prompts (tab)",
+                    value=interior_text,
+                    height=180,
+                    disabled=True,
+                    label_visibility="collapsed",
+                    key="prompts_interior_tab",
+                )
+            with col_cov:
+                st.markdown(f"**Cover (color) prompts:** {len(cover_prompts)}")
+                cover_text = "\n".join(f"{i}. {p}" for i, p in enumerate(cover_prompts, 1))
+                st.text_area(
+                    "Cover prompts (tab)",
+                    value=cover_text,
+                    height=180,
+                    disabled=True,
+                    label_visibility="collapsed",
+                    key="prompts_cover_tab",
+                )
 
     with tab_keywords:
         keywords = state.get("seo_keywords", [])
@@ -700,30 +758,35 @@ def render_concept_research_section():
     if "generated_designs" not in st.session_state:
         st.session_state.generated_designs = []
 
-    idea_input = st.text_input(
-        "Your idea (e.g., dog, forest animals, ocean life):",
-        placeholder="Enter a theme or subject...",
-        key="concept_idea_input",
-    )
+    # Row 1: idea (70%) + creativity (15%) + variations (15%)
+    col_idea, col_creativity, col_variations = st.columns([7, 1.5, 1.5])
+    with col_idea:
+        idea_input = st.text_input(
+            "Your idea (e.g., dog, forest animals, ocean life):",
+            placeholder="Enter a theme or subject...",
+            key="concept_idea_input",
+        )
+    with col_creativity:
+        creativity_label = st.selectbox(
+            "Creativity",
+            options=["Low", "Medium", "High"],
+            index=1,
+            key="concept_creativity_level",
+        )
+    with col_variations:
+        num_variations = st.selectbox(
+            "Variations",
+            options=list(range(MIN_CONCEPT_VARIATIONS, MAX_CONCEPT_VARIATIONS + 1)),
+            index=0,
+            key="num_variations_select",
+        )
 
-    creativity_label = st.selectbox(
-        "Creativity level for concept variations:",
-        options=["Low", "Medium", "High"],
-        index=1,
-        key="concept_creativity_level",
-    )
-
-    num_variations = st.selectbox(
-        "Number of variations to generate:",
-        options=list(range(MIN_CONCEPT_VARIATIONS, MAX_CONCEPT_VARIATIONS + 1)),
-        index=0,
-        key="num_variations_select",
-    )
-
+    # Row 2: button and disabled hint
+    gen_disabled = st.session_state.get("is_running", False)
     if st.button(
         f"Generate {num_variations} Concept Variations",
         key="gen_variations_btn",
-        disabled=st.session_state.get("is_running", False),
+        disabled=gen_disabled,
     ):
         if idea_input.strip():
             with st.spinner(f"Generating {num_variations} creative variations..."):
@@ -740,30 +803,36 @@ def render_concept_research_section():
                     st.error(f"Error generating variations: {e}")
         else:
             st.warning("Please enter an idea first.")
+    if gen_disabled:
+        st.caption("Generation in progress — wait for it to finish before generating variations.")
 
     variations = st.session_state.concept_variations
     selected = st.session_state.selected_concepts
 
     if variations:
         st.markdown("#### Concept Variations")
+        # Add all and count on same line
+        col_add_all, col_count, _ = st.columns([1, 1, 4])
+        with col_add_all:
+            if st.button(
+                "Add all variations",
+                key="add_all_btn",
+                disabled=st.session_state.get("is_running", False) or len(selected) >= MAX_SELECTED_CONCEPTS,
+            ):
+                existing_keys = {(c.get("theme", ""), c.get("style", "")) for c in st.session_state.selected_concepts}
+                for v in variations:
+                    if len(st.session_state.selected_concepts) >= MAX_SELECTED_CONCEPTS:
+                        break
+                    theme = v.get("theme_concept") or v.get("mixable_components", {}).get("theme", "")
+                    style = v.get("art_style") or v.get("mixable_components", {}).get("style", "")
+                    if (theme, style) not in existing_keys:
+                        concept = _normalize_concept(theme, style, variations)
+                        st.session_state.selected_concepts = st.session_state.selected_concepts + [concept]
+                        existing_keys.add((theme, style))
+                st.rerun()
+        with col_count:
+            st.caption(f"{len(selected)} / {MAX_SELECTED_CONCEPTS} concepts")
         st.caption("Click **Add to concepts** on any variation, or use **Add all** to select everything.")
-
-        if st.button(
-            "Add all variations",
-            key="add_all_btn",
-            disabled=st.session_state.get("is_running", False) or len(selected) >= MAX_SELECTED_CONCEPTS,
-        ):
-            existing_keys = {(c.get("theme", ""), c.get("style", "")) for c in st.session_state.selected_concepts}
-            for v in variations:
-                if len(st.session_state.selected_concepts) >= MAX_SELECTED_CONCEPTS:
-                    break
-                theme = v.get("theme_concept") or v.get("mixable_components", {}).get("theme", "")
-                style = v.get("art_style") or v.get("mixable_components", {}).get("style", "")
-                if (theme, style) not in existing_keys:
-                    concept = _normalize_concept(theme, style, variations)
-                    st.session_state.selected_concepts = st.session_state.selected_concepts + [concept]
-                    existing_keys.add((theme, style))
-            st.rerun()
 
         cards_per_row = 3
         for row_start in range(0, len(variations), cards_per_row):
@@ -839,6 +908,22 @@ def render_design_generation_tab():
     """Render the Design Generation tab with all three sections."""
     st.markdown("## Design Generation")
 
+    from ui.components.design_selector import render_tab_design_selector
+    render_tab_design_selector("design_gen", persist_to_workflow=True)
+    st.markdown("---")
+
+    workflow_state = st.session_state.get("workflow_state")
+    # One-line summary at top (medium recommendation)
+    if workflow_state and workflow_state.get("title"):
+        title = workflow_state.get("title", "Untitled")[:40]
+        n_prompts = len(workflow_state.get("midjourney_prompts") or [])
+        n_cover = len(workflow_state.get("cover_prompts") or [])
+        pkg_path = workflow_state.get("design_package_path")
+        saved = "Saved" if (pkg_path and Path(pkg_path).exists()) else "Unsaved"
+        st.caption(f"**Design:** {title}{'…' if len(workflow_state.get('title', '')) > 40 else ''}  ·  **Prompts:** {n_prompts} interior, {n_cover} cover  ·  **{saved}**")
+    else:
+        st.caption("No design loaded. Create one below or load a package above.")
+
     if "concept_variations" not in st.session_state:
         st.session_state.concept_variations = []
     if "selected_concepts" not in st.session_state:
@@ -848,7 +933,6 @@ def render_design_generation_tab():
 
     variations, selected_concepts = render_concept_research_section()
 
-    workflow_state = st.session_state.get("workflow_state")
     generated_designs = st.session_state.get("generated_designs", [])
 
     if selected_concepts:
@@ -875,70 +959,85 @@ def render_design_generation_tab():
             st.session_state.generation_single_insert_idx = None
 
         n_concepts = len(selected_concepts)
+        gen_all_disabled = st.session_state.get("is_running", False) or st.session_state.get("generation_in_progress", False)
         if st.button(
             f"Generate All {n_concepts} Designs",
             type="primary",
             key="gen_all_btn",
-            disabled=st.session_state.get("is_running", False) or st.session_state.get("generation_in_progress", False),
+            disabled=gen_all_disabled,
         ):
-            st.session_state.generation_queue = list(selected_concepts)
+            queue = list(selected_concepts)
+            st.session_state.generation_queue = queue
             st.session_state.generation_results = []
             st.session_state.generation_current_index = 0
             st.session_state.generation_in_progress = True
             st.session_state.generation_step_state = None
             st.session_state.generation_current_step = 0
+            single_idx = st.session_state.get("generation_single_insert_idx")
             st.session_state.generation_single_insert_idx = None
+            # Run in background so UI stays responsive (high-priority recommendation)
+            import tempfile
+            result_file = Path(tempfile.gettempdir()) / f"cb_design_batch_{threading.get_ident()}_{id(queue)}.json"
+            st.session_state.design_gen_batch_result_file = str(result_file)
             st.session_state.is_running = True
+            t = threading.Thread(
+                target=_run_batch_design_gen_background,
+                args=(queue, result_file, single_idx),
+                daemon=True,
+            )
+            t.start()
             st.rerun()
+        if gen_all_disabled:
+            st.caption("Generation in progress — wait for it to finish or click Refresh below.")
 
         if st.session_state.get("generation_in_progress") and st.session_state.generation_queue:
             queue = list(st.session_state.generation_queue)
-            single_idx = st.session_state.get("generation_single_insert_idx")
+            result_file_str = st.session_state.get("design_gen_batch_result_file")
+            result_file = Path(result_file_str) if result_file_str else None
             n = len(queue)
-            workers = min(MAX_PARALLEL_DESIGNS, n)
 
-            with st.spinner(f"Generating {n} design(s) in parallel ({workers} at a time)..."):
-                results_by_index = [None] * n
-                failed_indices = []
-                with ThreadPoolExecutor(max_workers=workers) as executor:
-                    future_to_index = {executor.submit(run_design_for_concept, concept): i for i, concept in enumerate(queue)}
-                    for future in as_completed(future_to_index):
-                        i = future_to_index[future]
-                        try:
-                            state = future.result()
-                            try:
-                                path = create_design_package(state)
-                                state["design_package_path"] = path
-                                state["images_folder_path"] = path
-                            except Exception:
-                                pass
-                            results_by_index[i] = state
-                        except Exception as e:
-                            failed_indices.append((i + 1, str(e)))
-                            results_by_index[i] = {}
-
-                for i_1based, err in failed_indices:
-                    st.error(f"Design {i_1based} failed: {err}")
-
-                if single_idx is not None:
-                    designs = list(st.session_state.get("generated_designs", []))
-                    while len(designs) <= single_idx:
-                        designs.append({})
-                    if results_by_index and results_by_index[0]:
-                        designs[single_idx] = results_by_index[0]
-                    st.session_state.generated_designs = designs
-                    st.session_state.generation_single_insert_idx = None
-                else:
-                    st.session_state.generated_designs = [r or {} for r in results_by_index]
-
-            st.session_state.generation_in_progress = False
-            st.session_state.is_running = False
-            st.session_state.generation_queue = []
-            st.session_state.generation_results = []
-            st.session_state.generation_current_index = 0
-            st.session_state.generation_step_state = None
-            st.session_state.generation_current_step = 0
-            st.rerun()
+            if result_file and result_file.exists():
+                # Background run finished: load results and clear state
+                try:
+                    with open(result_file, encoding="utf-8") as f:
+                        out = json.load(f)
+                    results_by_index = out.get("results", [])
+                    single_idx = out.get("single_insert_idx")
+                    failed_indices = out.get("failed", [])
+                    for i_1based, err in failed_indices:
+                        st.error(f"Design {i_1based} failed: {err}")
+                    if out.get("error"):
+                        st.error(out["error"])
+                    if single_idx is not None:
+                        designs = list(st.session_state.get("generated_designs", []))
+                        while len(designs) <= single_idx:
+                            designs.append({})
+                        if results_by_index and results_by_index[0]:
+                            designs[single_idx] = results_by_index[0]
+                        st.session_state.generated_designs = designs
+                    else:
+                        st.session_state.generated_designs = [r or {} for r in results_by_index]
+                except Exception as e:
+                    st.error(f"Loading results failed: {e}")
+                finally:
+                    st.session_state.generation_in_progress = False
+                    st.session_state.is_running = False
+                    st.session_state.generation_queue = []
+                    st.session_state.generation_results = []
+                    st.session_state.generation_current_index = 0
+                    st.session_state.generation_step_state = None
+                    st.session_state.generation_current_step = 0
+                    st.session_state.pop("design_gen_batch_result_file", None)
+                    try:
+                        result_file.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                st.rerun()
+            else:
+                # Still running: show progress and Refresh so user can switch tabs
+                st.info(f"**Generating {n} design(s) in background.** You can switch to other tabs. Click **Refresh** to check status.")
+                if st.button("Refresh", key="gen_all_refresh_btn"):
+                    st.rerun()
 
         generated_designs = st.session_state.get("generated_designs", [])
 
@@ -986,33 +1085,38 @@ def render_design_generation_tab():
                         st.rerun()
 
     st.markdown("---")
-    st.markdown("### 3. Or Describe Your Coloring Book (Direct)")
-    user_request = st.text_area(
+    user_request = st.session_state.get("design_user_request", "")
+    generate_btn = False
+    with st.expander("Or describe your coloring book (no concept research)", expanded=False):
+        st.caption("Skip concept research and generate from a single description.")
+        user_request = st.text_area(
         "What kind of coloring book would you like to create?",
         placeholder="Example: A forest animals coloring book for adults with intricate mandala patterns...",
         height=100,
-        key="design_user_request"
-    )
-
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        generate_btn = st.button("Generate", type="primary", disabled=st.session_state.get("is_running", False))
-    with col2:
-        if st.button("Clear", disabled=st.session_state.get("is_running", False)):
-            st.session_state.workflow_state = None
-            st.rerun()
-    st.caption("Design generation runs in the foreground; other tabs won’t update until it finishes.")
+        key="design_user_request",
+        )
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            generate_btn = st.button("Generate", type="primary", disabled=st.session_state.get("is_running", False))
+        with col2:
+            if st.button("Clear", disabled=st.session_state.get("is_running", False)):
+                st.session_state.workflow_state = None
+                st.rerun()
+        st.caption("Design generation runs in the foreground; other tabs won’t update until it finishes.")
 
     st.markdown("**Saved Designs**")
     if workflow_state and workflow_state.get("title"):
-        save_name = st.text_input("Save as:", value=workflow_state.get("title", ""), key="save_name_input")
-        if st.button("Save Current Design", key="save_design_btn"):
-            try:
-                path = _save_or_update_design_package(workflow_state, name=save_name if save_name else None)
-                st.success("Design saved!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error saving: {e}")
+        col_save, col_btn = st.columns([7, 3])
+        with col_save:
+            save_name = st.text_input("Save as:", value=workflow_state.get("title", ""), key="save_name_input", label_visibility="collapsed", placeholder="Design name")
+        with col_btn:
+            if st.button("Save Current Design", key="save_design_btn", use_container_width=True):
+                try:
+                    path = _save_or_update_design_package(workflow_state, name=save_name if save_name else None)
+                    st.success("Design saved!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error saving: {e}")
 
     st.markdown("**Design Packages**")
     from ui.components.design_selector import render_design_package_selector
