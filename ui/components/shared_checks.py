@@ -89,8 +89,12 @@ def _render_system_check_content(check_results: dict) -> None:
 BROWSER_STATUS_KEY = "browser_status"  # Shared by Canva and Pinterest; port from get_port_for_role(tab)
 
 
-def _get_prerequisites_state(state: dict, tab_name: str) -> dict:
-    """Get prerequisites state for canva or pinterest tab."""
+def _get_prerequisites_state(state: dict, tab_name: str, key_prefix: str) -> dict:
+    """Get prerequisites state for canva or pinterest tab.
+
+    key_prefix is used to keep Streamlit widget keys unique when the same checks
+    component is rendered multiple times (e.g. bulk + single-design).
+    """
     has_title = bool(state.get("title"))
     has_description = bool(state.get("description"))
     design_generated = has_title and has_description
@@ -125,8 +129,9 @@ def _get_prerequisites_state(state: dict, tab_name: str) -> dict:
         and checks["browser_connected"]
     )
 
+    # Keep backwards-compatible session_state flags so existing tabs don't need custom wiring.
     session_state_key = "check_browser_canva_clicked" if tab_name == "canva" else "check_browser_clicked"
-    button_key = "check_browser_canva_btn" if tab_name == "canva" else "check_browser_btn"
+    button_key = f"{key_prefix}_check_browser_canva_btn" if tab_name == "canva" else f"{key_prefix}_check_browser_btn"
 
     return {
         "checks": checks,
@@ -139,14 +144,14 @@ def _get_prerequisites_state(state: dict, tab_name: str) -> dict:
     }
 
 
-def _render_prerequisites_content(state: dict, tab_name: str, prerq: dict) -> None:
+def _render_prerequisites_content(state: dict, tab_name: str, prerq: dict, key_prefix: str) -> None:
     """Render prerequisites content (design, images, browser) including browser status and actions."""
     checks = prerq["checks"]
     session_state_key = prerq["session_state_key"]
     button_key = prerq["button_key"]
     browser_status = prerq["browser_status"]
-    launch_key = f"launch_browser_{tab_name}_btn"
-    continue_key = f"continue_after_browser_{tab_name}"
+    launch_key = f"{key_prefix}_launch_browser_{tab_name}_btn"
+    continue_key = f"{key_prefix}_continue_after_browser_{tab_name}"
 
     st.markdown("**Prerequisites**")
     col1, col2, col3 = st.columns(3)
@@ -193,7 +198,7 @@ def _render_prerequisites_content(state: dict, tab_name: str, prerq: dict) -> No
                         st.error(result["message"])
         with col_b:
             if st.session_state.get(f"browser_launched_{tab_name}", False):
-                if st.button("Continue", key=f"continue_{tab_name}_btn", use_container_width=True):
+                if st.button("Continue", key=f"{key_prefix}_continue_{tab_name}_btn", use_container_width=True):
                     port = get_port_for_role(tab_name)
                     bs = check_browser_connection(port)
                     state[BROWSER_STATUS_KEY] = bs
@@ -202,14 +207,15 @@ def _render_prerequisites_content(state: dict, tab_name: str, prerq: dict) -> No
                     st.rerun()
 
 
-def render_combined_checks(state: dict, tab_name: str) -> dict:
+def render_combined_checks(state: dict, tab_name: str, *, key_prefix: str | None = None) -> dict:
     """
     Render system + prerequisites in one collapsible expander.
     tab_name: "canva" or "pinterest"
     Returns dict with check_results, all_ready, checks, images_folder_path, image_count
     """
+    prefix = (key_prefix or tab_name).strip() or tab_name
     check_results = run_full_check()
-    prerq = _get_prerequisites_state(state, tab_name)
+    prerq = _get_prerequisites_state(state, tab_name, prefix)
 
     # Count issues for header
     file_check = check_results["file_check"]
@@ -234,7 +240,7 @@ def render_combined_checks(state: dict, tab_name: str) -> dict:
         else:
             st.info("Complete prerequisites below")
     with col2:
-        refresh_key = f"refresh_checks_{tab_name}"
+        refresh_key = f"{prefix}_refresh_checks_{tab_name}"
         if st.button("Refresh", key=refresh_key, help="Refresh checks"):
             st.session_state[f"refresh_browser_check_{tab_name}"] = True
             st.rerun()
@@ -243,7 +249,7 @@ def render_combined_checks(state: dict, tab_name: str) -> dict:
         _render_checks_summary(check_results, prerq, tab_name)
         _render_system_check_content(check_results)
         st.divider()
-        _render_prerequisites_content(state, tab_name, prerq)
+        _render_prerequisites_content(state, tab_name, prerq, prefix)
 
     return {
         "check_results": check_results,

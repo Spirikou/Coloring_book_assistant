@@ -1,21 +1,63 @@
-"""Folder monitoring utilities for image files."""
+"""Folder monitoring utilities for image files.
+
+By default, image discovery is recursive to support design packages that organize
+downloads into nested subfolders (e.g. one subfolder per concept/style). This
+keeps the filesystem tidy while still allowing the dashboard and downstream tabs
+to "see" all images under a package folder.
+"""
 
 import os
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, Iterable, List, Set
 from datetime import datetime
 
 
 # Supported image file extensions
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'}
 
+DEFAULT_EXCLUDE_DIR_NAMES: Set[str] = {"cover", "__pycache__"}
 
-def get_images_in_folder(folder_path: str) -> List[str]:
+
+def _iter_image_files(
+    folder: Path,
+    *,
+    recursive: bool,
+    exclude_dir_names: Set[str],
+) -> Iterable[Path]:
+    if not recursive:
+        for p in folder.iterdir():
+            if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS:
+                yield p
+        return
+
+    for p in folder.rglob("*"):
+        if p.is_dir() and p.name in exclude_dir_names:
+            # rglob doesn't support pruning; skip by not yielding and relying on path checks below.
+            continue
+        if not p.is_file():
+            continue
+        # Exclude files that live under excluded directories anywhere in the path
+        if any(part in exclude_dir_names for part in p.parts):
+            continue
+        if p.suffix.lower() in IMAGE_EXTENSIONS:
+            yield p
+
+
+def get_images_in_folder(
+    folder_path: str,
+    *,
+    recursive: bool = True,
+    exclude_dir_names: Set[str] | None = None,
+) -> List[str]:
     """
     Scan folder for image files and return list of paths.
 
     Args:
         folder_path: Path to the folder to scan
+
+    Args:
+        recursive: If True, scan nested subfolders too (recommended for design packages).
+        exclude_dir_names: Directory names to ignore anywhere in the path (defaults include "cover").
 
     Returns:
         List of full paths to image files found in the folder
@@ -27,17 +69,20 @@ def get_images_in_folder(folder_path: str) -> List[str]:
     if not folder.is_dir():
         return []
 
-    image_files = []
-    for file_path in folder.iterdir():
-        if file_path.is_file() and file_path.suffix.lower() in IMAGE_EXTENSIONS:
-            image_files.append(str(file_path))
+    exclude = exclude_dir_names or DEFAULT_EXCLUDE_DIR_NAMES
+    image_files = [str(p) for p in _iter_image_files(folder, recursive=recursive, exclude_dir_names=exclude)]
 
     # Sort by filename for consistent ordering
     image_files.sort()
     return image_files
 
 
-def list_images_in_folder(folder_path: str) -> List[Path]:
+def list_images_in_folder(
+    folder_path: str,
+    *,
+    recursive: bool = True,
+    exclude_dir_names: Set[str] | None = None,
+) -> List[Path]:
     """
     Scan folder for image files and return list of Paths sorted by mtime (newest first).
     Used for downloaded images gallery.
@@ -49,10 +94,8 @@ def list_images_in_folder(folder_path: str) -> List[Path]:
     if not folder.is_dir():
         return []
 
-    paths = []
-    for file_path in folder.iterdir():
-        if file_path.is_file() and file_path.suffix.lower() in IMAGE_EXTENSIONS:
-            paths.append(file_path)
+    exclude = exclude_dir_names or DEFAULT_EXCLUDE_DIR_NAMES
+    paths = list(_iter_image_files(folder, recursive=recursive, exclude_dir_names=exclude))
     return sorted(paths, key=lambda p: p.stat().st_mtime, reverse=True)
 
 

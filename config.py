@@ -114,7 +114,7 @@ MIDJOURNEY_CONFIG: dict[str, Any] = {
         "download": [1688, 130],
         "vary_subtle": [1620, 720],
         "vary_strong": [1745, 720],
-        "upscale_subtle": [1620, 770],
+        "upscale_subtle": [1620, 800],
         "upscale_creative": [1745, 770],
     },
 }

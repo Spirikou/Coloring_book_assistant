@@ -16,9 +16,9 @@ from core.persistence import (
 )
 
 
-def render_pinterest_combined_checks(state: dict) -> dict:
+def render_pinterest_combined_checks(state: dict, *, key_prefix: str | None = None) -> dict:
     """Render combined system + prerequisites checks in one expander."""
-    return render_combined_checks(state, "pinterest")
+    return render_combined_checks(state, "pinterest", key_prefix=key_prefix)
 
 
 def render_prerequisites_check(state: dict) -> dict:
@@ -121,8 +121,13 @@ def render_configuration_section(state: dict, effective_images_folder: str = "")
     default_folder = state.get("images_folder_path") or effective_images_folder or (
         saved_config.get("images_folder_path", "") if saved_config else ""
     )
+    default_max_pins = (
+        state.get("pinterest_max_pins_per_design")
+        if state.get("pinterest_max_pins_per_design") is not None
+        else (saved_config.get("max_pins_per_design", 0) if saved_config else 0)
+    )
 
-    col_board, col_folder, col_btn = st.columns([2, 2, 1])
+    col_board, col_folder, col_max, col_btn = st.columns([2, 2, 1.5, 1.5])
     with col_board:
         board_name = st.text_input(
             "Pinterest Board Name",
@@ -141,10 +146,21 @@ def render_configuration_section(state: dict, effective_images_folder: str = "")
         )
     images_folder = images_folder.strip() if images_folder else ""
 
+    with col_max:
+        max_pins = st.number_input(
+            "Max pins per design",
+            min_value=0,
+            max_value=500,
+            value=int(default_max_pins or 0),
+            step=1,
+            help="Limit how many images are published for this design. 0 = publish all available images.",
+            key="pinterest_max_pins_input",
+        )
+
     with col_btn:
         st.caption(" ")  # align with inputs
         if st.button("Save Configuration", key="pinterest_save_config_btn", help="Save board name and images folder for next time", use_container_width=True):
-            if save_pinterest_config(board_name, images_folder):
+            if save_pinterest_config(board_name, images_folder, int(max_pins or 0)):
                 st.success("Configuration saved.")
                 st.rerun()
             else:
@@ -155,15 +171,27 @@ def render_configuration_section(state: dict, effective_images_folder: str = "")
         folder_images = get_images_in_folder(images_folder)
         image_count = len(folder_images)
         if image_count > 0:
-            st.caption(f"✓ **Images folder:** {image_count} images in `{images_folder}`")
+            if int(max_pins or 0) > 0 and image_count > int(max_pins or 0):
+                st.caption(
+                    f"✓ **Images folder:** {image_count} images in `{images_folder}` "
+                    f"(publishing up to {int(max_pins or 0)} per design)"
+                )
+            else:
+                st.caption(f"✓ **Images folder:** {image_count} images in `{images_folder}`")
         else:
             st.caption(f"○ No images found in `{images_folder}`")
     else:
         st.caption("Enter the path to the folder containing your images.")
 
+    # Persist current max in state for this session (non-authoritative; persisted via save_pinterest_config)
+    state["pinterest_max_pins_per_design"] = int(max_pins or 0)
+    if "workflow_state" in st.session_state:
+        st.session_state.workflow_state = state
+
     return {
         "board_name": board_name,
-        "images_folder": images_folder
+        "images_folder": images_folder,
+        "max_pins_per_design": int(max_pins or 0),
     }
 
 

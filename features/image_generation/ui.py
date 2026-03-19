@@ -21,6 +21,7 @@ from config import GENERATED_IMAGES_DIR, IMAGE_MIN_SCORE_THRESHOLD, get_midjourn
 from core.jobs import create_job, has_running_image_job, update_job_status
 from core.persistence import list_design_packages, load_design_package
 from features.image_generation.midjourney_runner import (
+    resolve_batch_output_folder,
     run_automated_process,
     run_automated_interior_then_cover_process,
     run_batch_automated_process,
@@ -1315,18 +1316,22 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
                 if health.has_errors():
                     st.error("Health check failed. Fix errors before starting.")
                     st.stop()
-                used_slugs: set[str] = set()
                 designs_with_folders: list[tuple[dict, Path, int]] = []
                 for orig_idx in batch_selected:
                     design = designs_for_batch[orig_idx]
                     if batch_quick_run_7:
                         prompts = (design.get("midjourney_prompts") or [])[:7]
                         design = {**design, "midjourney_prompts": prompts}
-                    slug = _design_to_subfolder_slug(design, orig_idx, used_slugs)
-                    subfolder = base_output / slug
-                    designs_with_folders.append((design, subfolder, orig_idx))
+                    target_folder = resolve_batch_output_folder(
+                        design,
+                        default_output_folder=base_output,
+                        auto_create_package=True,
+                    )
+                    designs_with_folders.append((design, target_folder, orig_idx))
                 st.session_state.mj_automated_stop_flag["stop"] = False
                 shared = st.session_state.mj_automated_shared
+                # Reset folder mapping for the new batch run.
+                st.session_state.mj_design_images_folders = {}
                 for k in list(shared.keys()):
                     if k.startswith("batch_"):
                         del shared[k]

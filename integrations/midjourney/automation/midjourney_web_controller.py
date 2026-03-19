@@ -81,6 +81,7 @@ class MidjourneyWebController:
         self.playwright = None
         self.browser = None
         self.page = None
+        self._connected_over_cdp: bool = False
 
     def _w(self, key: str, default: int | float) -> int | float:
         """Get wait value from config, fallback to default."""
@@ -130,14 +131,6 @@ class MidjourneyWebController:
             logger.info("[DRY RUN] Would connect to browser on port %s", self.debug_port)
             return
 
-        import asyncio
-        import sys
-
-        # Windows: ProactorEventLoop required for Playwright subprocess support.
-        # SelectorEventLoop raises NotImplementedError on create_subprocess_exec.
-        if sys.platform == "win32":
-            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-
         from playwright.sync_api import sync_playwright
 
         self.playwright = sync_playwright().start()
@@ -149,6 +142,7 @@ class MidjourneyWebController:
             self.browser = self.playwright.chromium.connect_over_cdp(
                 f"http://localhost:{self.debug_port}"
             )
+        self._connected_over_cdp = True
         contexts = self.browser.contexts
         if contexts:
             ctx = contexts[0]
@@ -162,13 +156,28 @@ class MidjourneyWebController:
 
     def close(self) -> None:
         """Close browser connection."""
-        if self.browser:
-            self.browser.close()
+        # When connected over CDP to a user-managed browser, calling browser.close() can
+        # inadvertently close or destabilize the shared browser/context (impacting other
+        # pipeline stages/processes). Prefer closing only the page and stopping Playwright.
+        if self.page:
+            try:
+                self.page.close()
+            except Exception:
+                pass
+        if self.browser and not self._connected_over_cdp:
+            try:
+                self.browser.close()
+            except Exception:
+                pass
         if self.playwright:
-            self.playwright.stop()
+            try:
+                self.playwright.stop()
+            except Exception:
+                pass
         self.playwright = None
         self.browser = None
         self.page = None
+        self._connected_over_cdp = False
 
     def capture_detail_view_screenshot(self, output_path: Path) -> Path:
         """Capture screenshot of detail view for coordinate discovery. Caller must have detail view open."""

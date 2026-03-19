@@ -6,9 +6,9 @@ from integrations.pinterest.antivirus_check import run_full_check
 from ui.components.shared_checks import render_combined_checks, BROWSER_STATUS_KEY
 
 
-def render_canva_combined_checks(state: dict) -> dict:
+def render_canva_combined_checks(state: dict, *, key_prefix: str | None = None) -> dict:
     """Render combined system + prerequisites checks in one expander."""
-    return render_combined_checks(state, "canva")
+    return render_combined_checks(state, "canva", key_prefix=key_prefix)
 
 
 def render_canva_prerequisites_check(state: dict) -> dict:

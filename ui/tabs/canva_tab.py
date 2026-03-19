@@ -35,20 +35,154 @@ def render_canva_tab(workflow_state: dict | None) -> None:
     """Render the Canva Design tab. Uses workflow_state or a design loaded in this tab."""
     st.header("Canva Design")
 
+    mode = st.radio(
+        "Mode",
+        options=["Bulk", "Single design"],
+        horizontal=True,
+        key="canva_mode_select",
+        help="Bulk runs multiple design packages sequentially. Single design runs the current loaded design package.",
+    )
+    st.markdown("---")
+
+    state, from_workflow = _resolve_canva_state(st.session_state.get("workflow_state"))
+
+    if "canva_workflow" not in st.session_state:
+        st.session_state.canva_workflow = CanvaDesignWorkflow()
+    workflow = st.session_state.canva_workflow
+
+    canva_port = get_port_for_role("canva")
+    if mode == "Bulk":
+        # Bulk runs don't require a design loaded; keep a small bulk state for checks.
+        if "canva_bulk_state" not in st.session_state:
+            st.session_state["canva_bulk_state"] = {"browser_status": {}}
+        bulk_state: dict = st.session_state.get("canva_bulk_state") or {"browser_status": {}}
+
+        # Bulk: handle refresh/check flags
+        if st.session_state.get("check_browser_canva_clicked", False):
+            st.session_state.check_browser_canva_clicked = False
+            bs = check_browser_connection(canva_port)
+            bulk_state["browser_status"] = bs
+            st.session_state["canva_bulk_state"] = bulk_state
+
+        if st.session_state.get("refresh_browser_check_canva", False):
+            st.session_state.refresh_browser_check_canva = False
+            bs = check_browser_connection(canva_port)
+            bulk_state["browser_status"] = bs
+            st.session_state["canva_bulk_state"] = bulk_state
+
+        bulk_browser_status = bulk_state.get("browser_status") or check_browser_connection(canva_port)
+        bulk_state["browser_status"] = bulk_browser_status
+        st.session_state["canva_bulk_state"] = bulk_state
+
+        st.subheader("Bulk setup")
+        # Use shared combined checks with a distinct key prefix so bulk and single
+        # can coexist without widget key collisions.
+        render_canva_combined_checks(bulk_state, key_prefix="canva_bulk")
+
+        with st.expander("Bulk Canva — run multiple designs (sequential)", expanded=True):
+            from core.persistence import list_design_packages
+            from ui.components.bulk_runners import build_design_package_options, run_bulk_canva
+
+            packages = list_design_packages()
+            if not packages:
+                st.caption("No design packages found. Create some in the Design Generation tab first.")
+                return
+
+            # Bulk-specific config (does not depend on a loaded design)
+            col_page, col_margin, col_outline, col_blank = st.columns([2, 1, 1, 1])
+            with col_page:
+                bulk_page_size = st.text_input(
+                    "Page size (inches)",
+                    value=st.session_state.get("canva_bulk_page_size", "8.625x8.75"),
+                    key="canva_bulk_page_size_input",
+                    placeholder="8.625x8.75",
+                    help="Format: WIDTHxHEIGHT. This setting applies to all selected designs in this bulk run.",
+                )
+                st.session_state["canva_bulk_page_size"] = bulk_page_size
+            with col_margin:
+                bulk_margin_percent = st.number_input(
+                    "Margin %",
+                    min_value=0.0,
+                    max_value=50.0,
+                    value=float(st.session_state.get("canva_bulk_margin_percent", 8.0)),
+                    step=0.5,
+                    key="canva_bulk_margin_input",
+                )
+                st.session_state["canva_bulk_margin_percent"] = bulk_margin_percent
+            with col_outline:
+                bulk_outline_height_percent = st.number_input(
+                    "Outline %",
+                    min_value=0.0,
+                    max_value=50.0,
+                    value=float(st.session_state.get("canva_bulk_outline_height_percent", 6.0)),
+                    step=0.5,
+                    key="canva_bulk_outline_input",
+                )
+                st.session_state["canva_bulk_outline_height_percent"] = bulk_outline_height_percent
+            with col_blank:
+                bulk_blank_between = st.checkbox(
+                    "Blank between",
+                    value=bool(st.session_state.get("canva_bulk_blank_between", True)),
+                    key="canva_bulk_blank_between_input",
+                )
+                st.session_state["canva_bulk_blank_between"] = bulk_blank_between
+
+            options = build_design_package_options(packages)
+            selected_labels = st.multiselect(
+                "Design packages to send to Canva",
+                options=list(options.keys()),
+                key="canva_bulk_package_select",
+            )
+
+            bulk_can_create = bool(selected_labels) and bulk_browser_status.get("connected", False)
+            col_run, col_info = st.columns([2, 3])
+            with col_run:
+                bulk_clicked = st.button(
+                    "Run bulk Canva",
+                    disabled=not bulk_can_create,
+                    key="canva_bulk_start_btn",
+                    use_container_width=True,
+                )
+            with col_info:
+                if not selected_labels:
+                    st.caption("Select at least one design package to enable bulk Canva.")
+                elif not bulk_browser_status.get("connected", False):
+                    st.caption(f"Browser not connected on Canva slot (port {canva_port}). Connect it in the Config tab.")
+                else:
+                    st.caption(f"{len(selected_labels)} design(s) will be processed sequentially.")
+
+            if bulk_clicked and bulk_can_create:
+                from features.image_generation.monitor import get_images_in_folder
+
+                selected_paths = [options[lbl] for lbl in selected_labels if options.get(lbl)]
+                run_bulk_canva(
+                    st=st,
+                    workflow=workflow,
+                    selected_paths=selected_paths,
+                    page_size=bulk_page_size,
+                    margin_percent=float(bulk_margin_percent),
+                    outline_height_percent=float(bulk_outline_height_percent),
+                    blank_between=bool(bulk_blank_between),
+                    get_images_in_folder=get_images_in_folder,
+                )
+
+        return
+
+    # Single design mode
+    st.subheader("Single design")
     from ui.components.design_selector import render_tab_design_selector
     render_tab_design_selector("canva", persist_to_workflow=True, tab_state_key=CANVA_TAB_STATE_KEY)
     st.markdown("---")
 
     state, from_workflow = _resolve_canva_state(st.session_state.get("workflow_state"))
     if state is None:
-        st.info("Load a design package above or create one in the Design Generation tab.")
+        st.info("Load a design package above to start the single-design Canva workflow.")
         return
 
-    st.caption(f"Using: **{state.get('title', 'Untitled')}**" + (" (from sidebar)" if from_workflow else " (loaded in this tab)"))
-
-    if "canva_workflow" not in st.session_state:
-        st.session_state.canva_workflow = CanvaDesignWorkflow()
-    workflow = st.session_state.canva_workflow
+    st.caption(
+        f"Using: **{state.get('title', 'Untitled')}**"
+        + (" (from sidebar)" if from_workflow else " (loaded in this tab)")
+    )
 
     if "canva_status" not in state:
         state["canva_status"] = "pending"
@@ -61,25 +195,12 @@ def render_canva_tab(workflow_state: dict | None) -> None:
         legacy = state.get("canva_browser_status") or state.get("pinterest_browser_status")
         state["browser_status"] = legacy if isinstance(legacy, dict) else {}
 
-    canva_port = get_port_for_role("canva")
-    if st.session_state.get("check_browser_canva_clicked", False):
-        st.session_state.check_browser_canva_clicked = False
-        browser_status = check_browser_connection(canva_port)
-        state["browser_status"] = browser_status
-        _persist_canva_state(state, from_workflow)
-
-    if st.session_state.get("refresh_browser_check_canva", False):
-        st.session_state.refresh_browser_check_canva = False
-        browser_status = check_browser_connection(canva_port)
-        state["browser_status"] = browser_status
-        _persist_canva_state(state, from_workflow)
-
     if not state.get("browser_status"):
         browser_status = check_browser_connection(canva_port)
         state["browser_status"] = browser_status
         _persist_canva_state(state, from_workflow)
 
-    prerequisites = render_canva_combined_checks(state)
+    prerequisites = render_canva_combined_checks(state, key_prefix="canva_single")
     images_folder_path = prerequisites.get("images_folder_path", state.get("images_folder_path", ""))
     browser_status = state.get("browser_status", {})
 

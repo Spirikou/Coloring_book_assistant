@@ -9,14 +9,82 @@ Sync API conflicts with Streamlit's asyncio loop.
 from __future__ import annotations
 
 import multiprocessing
+import queue
+import threading
 import time
 from pathlib import Path
-from typing import Callable
+from typing import Callable, TypeVar
 
 from integrations.midjourney.config import get_file_config_overrides
 from integrations.midjourney.utils.logging_config import logger
 
 RATE_LIMIT_ERROR_PATTERNS = ("queue", "limit", "too many", "rate", "wait")
+
+T = TypeVar("T")
+
+
+def resolve_batch_output_folder(
+    design: dict,
+    *,
+    default_output_folder: Path,
+    auto_create_package: bool = True,
+) -> Path:
+    """Resolve per-design download target folder for batch runs.
+
+    Preference order:
+    1) Existing images_folder_path
+    2) Existing design_package_path
+    3) Auto-create design package (optional)
+    4) Fallback to default output folder
+    """
+    images_folder = (design.get("images_folder_path") or "").strip()
+    if images_folder:
+        path = Path(images_folder)
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    design_package = (design.get("design_package_path") or "").strip()
+    if design_package:
+        path = Path(design_package)
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    if auto_create_package:
+        # Lazy import to avoid broad dependency coupling at module import time.
+        from core.persistence import create_design_package
+
+        created = create_design_package(design)
+        created_path = Path(created)
+        design["design_package_path"] = str(created_path.resolve())
+        design["images_folder_path"] = str(created_path.resolve())
+        return created_path
+
+    default_output_folder.mkdir(parents=True, exist_ok=True)
+    return default_output_folder
+
+
+def _run_in_worker_thread(name: str, fn: Callable[[], T]) -> T:
+    """Run blocking automation in a dedicated thread.
+
+    Playwright Sync API cannot be started from a thread that has a running asyncio loop.
+    Streamlit and other runtimes may have an event loop in the main thread even when our
+    code is otherwise synchronous. asyncio event loops are thread-local, so running the
+    automation body in a fresh worker thread avoids that class of failures.
+    """
+    result_q: "queue.Queue[tuple[bool, object]]" = queue.Queue(maxsize=1)
+
+    def _target() -> None:
+        try:
+            result_q.put((True, fn()))
+        except Exception as e:
+            result_q.put((False, e))
+
+    t = threading.Thread(target=_target, name=f"mj-{name}", daemon=True)
+    t.start()
+    ok, payload = result_q.get()
+    if ok:
+        return payload  # type: ignore[return-value]
+    raise payload  # type: ignore[misc]
 
 
 def _compute_finalization_wait_sec(
@@ -64,6 +132,39 @@ def _compute_finalization_wait_sec(
 
 
 def run_publish_thread(
+    prompts: list[str],
+    button_coordinates: dict,
+    browser_port: int,
+    stop_flag: dict,
+    progress_store: dict,
+    status_store: dict,
+    viewport: dict | None = None,
+    coordinates_viewport: dict | None = None,
+    debug_show_clicks: bool = False,
+) -> None:
+    """Submit prompts only. No upscale, vary, or download.
+
+    Runs the implementation in a worker thread to avoid Playwright Sync API conflicts
+    when an asyncio loop is running in the caller thread (common in Streamlit).
+    """
+
+    def _impl() -> None:
+        _run_publish_impl(
+            prompts=prompts,
+            button_coordinates=button_coordinates,
+            browser_port=browser_port,
+            stop_flag=stop_flag,
+            progress_store=progress_store,
+            status_store=status_store,
+            viewport=viewport,
+            coordinates_viewport=coordinates_viewport,
+            debug_show_clicks=debug_show_clicks,
+        )
+
+    _run_in_worker_thread("publish", _impl)
+
+
+def _run_publish_impl(
     prompts: list[str],
     button_coordinates: dict,
     browser_port: int,
@@ -234,6 +335,45 @@ def run_publish_thread(
 
 
 def run_uxd_action_thread(
+    button_keys: list[str],
+    count: int,
+    output_folder: Path,
+    button_coordinates: dict,
+    browser_port: int,
+    stop_flag: dict,
+    total_new_images: int,
+    progress_store: dict,
+    status_store: dict,
+    viewport: dict | None = None,
+    coordinates_viewport: dict | None = None,
+    debug_show_clicks: bool = False,
+) -> None:
+    """Run Upscale/Vary for first N images.
+
+    Runs the implementation in a worker thread to avoid Playwright Sync API conflicts
+    when an asyncio loop is running in the caller thread (common in Streamlit).
+    """
+
+    def _impl() -> None:
+        _run_uxd_action_impl(
+            button_keys=button_keys,
+            count=count,
+            output_folder=output_folder,
+            button_coordinates=button_coordinates,
+            browser_port=browser_port,
+            stop_flag=stop_flag,
+            total_new_images=total_new_images,
+            progress_store=progress_store,
+            status_store=status_store,
+            viewport=viewport,
+            coordinates_viewport=coordinates_viewport,
+            debug_show_clicks=debug_show_clicks,
+        )
+
+    _run_in_worker_thread("uxd", _impl)
+
+
+def _run_uxd_action_impl(
     button_keys: list[str],
     count: int,
     output_folder: Path,
@@ -422,6 +562,41 @@ def run_uxd_action_thread(
 
 
 def run_download_thread(
+    count: int,
+    output_folder: Path,
+    button_coordinates: dict,
+    browser_port: int,
+    stop_flag: dict,
+    progress_store: dict,
+    status_store: dict,
+    viewport: dict | None = None,
+    coordinates_viewport: dict | None = None,
+    debug_show_clicks: bool = False,
+) -> None:
+    """Run Download for first N images.
+
+    Runs the implementation in a worker thread to avoid Playwright Sync API conflicts
+    when an asyncio loop is running in the caller thread (common in Streamlit).
+    """
+
+    def _impl() -> None:
+        _run_download_impl(
+            count=count,
+            output_folder=output_folder,
+            button_coordinates=button_coordinates,
+            browser_port=browser_port,
+            stop_flag=stop_flag,
+            progress_store=progress_store,
+            status_store=status_store,
+            viewport=viewport,
+            coordinates_viewport=coordinates_viewport,
+            debug_show_clicks=debug_show_clicks,
+        )
+
+    _run_in_worker_thread("download", _impl)
+
+
+def _run_download_impl(
     count: int,
     output_folder: Path,
     button_coordinates: dict,

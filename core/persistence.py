@@ -155,7 +155,11 @@ def list_saved_states() -> List[Dict]:
     return states
 
 
-def save_pinterest_config(board_name: str, images_folder_path: str) -> bool:
+def save_pinterest_config(
+    board_name: str,
+    images_folder_path: str,
+    max_pins_per_design: int | None = None,
+) -> bool:
     """
     Save Pinterest publishing configuration (board name, images folder path).
 
@@ -171,6 +175,8 @@ def save_pinterest_config(board_name: str, images_folder_path: str) -> bool:
         config = {
             "board_name": board_name or "",
             "images_folder_path": images_folder_path or "",
+            # 0 or None = publish all images for a design
+            "max_pins_per_design": int(max_pins_per_design or 0),
             "_metadata": {
                 "saved_at": datetime.now().isoformat(),
             },
@@ -196,6 +202,9 @@ def load_pinterest_config() -> Optional[Dict]:
         with open(PINTEREST_CONFIG_FILE, "r", encoding="utf-8") as f:
             config = json.load(f)
         config.pop("_metadata", None)
+        # Ensure key exists for callers; default 0 = publish all
+        if "max_pins_per_design" not in config:
+            config["max_pins_per_design"] = 0
         return config
     except Exception as e:
         print(f"Error loading Pinterest config: {e}")
@@ -557,10 +566,17 @@ def list_design_packages() -> List[Dict]:
                 saved_at_str = datetime.fromisoformat(saved_at).strftime("%Y-%m-%d %H:%M:%S")
             else:
                 saved_at_str = datetime.fromtimestamp(saved_at).strftime("%Y-%m-%d %H:%M:%S")
-            image_count = sum(
-                1 for f in folder.iterdir()
-                if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
-            )
+            # Count images recursively so nested concept/style folders still show up on the dashboard.
+            # Exclude cover assets by convention (pkg/cover).
+            exclude_dir_names = {"cover", "__pycache__"}
+            image_count = 0
+            for f in folder.rglob("*"):
+                if not f.is_file():
+                    continue
+                if any(part in exclude_dir_names for part in f.parts):
+                    continue
+                if f.suffix.lower() in IMAGE_EXTENSIONS:
+                    image_count += 1
             packages.append({
                 "name": folder.name,
                 "path": str(folder.resolve()),
