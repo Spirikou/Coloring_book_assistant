@@ -134,7 +134,12 @@ def _wait_for_uploaded_image(page: Page, image_path: Path) -> bool:
     return False
 
 
-def upload_and_place_single_image(page: Page, image_path: Path) -> None:
+def upload_and_place_single_image(
+    page: Page,
+    image_path: Path,
+    *,
+    debug_context: dict | None = None,
+) -> None:
     """
     Upload a single image and place it on the canvas.
 
@@ -203,6 +208,15 @@ def upload_and_place_single_image(page: Page, image_path: Path) -> None:
     if not uploads_clicked:
         raise Exception("Could not click Uploads sidebar button")
 
+    uploads_click = None
+    if UPLOAD_COORDINATES_CONFIG and "uploads_panel" in UPLOAD_COORDINATES_CONFIG:
+        uc = UPLOAD_COORDINATES_CONFIG["uploads_panel"].get("uploads_sidebar_button", {})
+        if uc.get("x") and uc.get("y"):
+            uploads_click = (uc["x"], uc["y"])
+    if debug_context and uploads_click:
+        from .debug_screenshot import maybe_save_debug
+        maybe_save_debug(debug_context, page, "uploads_sidebar_clicked", [uploads_click])
+
     # Step 2: Click Upload files button (with retries)
     _dismiss_overlays(page)
     logger.info("Step 2: Clicking Upload files button...")
@@ -239,6 +253,15 @@ def upload_and_place_single_image(page: Page, image_path: Path) -> None:
 
     if not upload_files_clicked:
         raise Exception("Could not click Upload files button")
+
+    upload_files_click = None
+    if UPLOAD_COORDINATES_CONFIG and "uploads_panel" in UPLOAD_COORDINATES_CONFIG:
+        ufc = UPLOAD_COORDINATES_CONFIG["uploads_panel"].get("upload_files_button", {})
+        if ufc.get("x") and ufc.get("y"):
+            upload_files_click = (ufc["x"], ufc["y"])
+    if debug_context and upload_files_click:
+        from .debug_screenshot import maybe_save_debug
+        maybe_save_debug(debug_context, page, "upload_files_clicked", [upload_files_click])
 
     # Step 3: Select and upload the image
     logger.info(f"Step 3: Selecting image: {image_path.name}...")
@@ -309,5 +332,14 @@ def upload_and_place_single_image(page: Page, image_path: Path) -> None:
 
     if not image_placed:
         logger.warning("Could not click on uploaded image - it may have been placed automatically")
+
+    image_click = None
+    if UPLOAD_COORDINATES_CONFIG and "uploads_panel" in UPLOAD_COORDINATES_CONFIG:
+        ic = UPLOAD_COORDINATES_CONFIG["uploads_panel"].get("uploaded_image_click", {})
+        if ic.get("x") and ic.get("y"):
+            image_click = (ic["x"], ic["y"])
+    if debug_context and image_click:
+        from .debug_screenshot import maybe_save_debug
+        maybe_save_debug(debug_context, page, f"image_placed_{image_path.stem}", [image_click])
 
     logger.info(f"✅ Completed upload and placement for: {image_path.name}")

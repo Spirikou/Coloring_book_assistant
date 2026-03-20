@@ -7,6 +7,8 @@ import streamlit as st
 from core.browser_config import (
     BrowserSlot,
     ValidationError,
+    check_browser_connection,
+    get_port_for_role,
     load_slots,
     save_slots,
     test_connection,
@@ -18,6 +20,133 @@ from integrations.midjourney.automation.browser_utils import launch_browser_for_
 
 
 ROLE_OPTIONS = ["midjourney", "pinterest", "canva", "unused"]
+
+
+def _collect_section_status() -> list[dict]:
+    """Collect key status/errors for each app section to help with debugging."""
+    statuses: list[dict] = []
+
+    # Design generation
+    try:
+        packages = list_design_packages()
+        count = len(packages)
+        statuses.append({
+            "section": "Design Generation",
+            "status": "ok" if count > 0 else "warning",
+            "message": f"{count} design package(s)" if count > 0 else "No design packages yet. Generate a design first.",
+        })
+    except Exception as e:
+        statuses.append({
+            "section": "Design Generation",
+            "status": "error",
+            "message": str(e),
+        })
+
+    # Image generation (Midjourney)
+    try:
+        port = get_port_for_role("midjourney")
+        result = check_browser_connection(port)
+        connected = result.get("connected", False)
+        statuses.append({
+            "section": "Image Generation (Midjourney)",
+            "status": "ok" if connected else "error",
+            "message": f"Browser connected on port {port}" if connected else f"Browser not connected on port {port}. Launch from slot above.",
+        })
+    except Exception as e:
+        statuses.append({
+            "section": "Image Generation (Midjourney)",
+            "status": "error",
+            "message": str(e),
+        })
+
+    # Canva design creation
+    try:
+        port = get_port_for_role("canva")
+        result = check_browser_connection(port)
+        connected = result.get("connected", False)
+        statuses.append({
+            "section": "Canva Design Creation",
+            "status": "ok" if connected else "error",
+            "message": f"Browser connected on port {port}" if connected else f"Browser not connected on port {port}. Launch from slot above.",
+        })
+    except Exception as e:
+        statuses.append({
+            "section": "Canva Design Creation",
+            "status": "error",
+            "message": str(e),
+        })
+
+    # Pinterest publishing
+    try:
+        port = get_port_for_role("pinterest")
+        result = check_browser_connection(port)
+        connected = result.get("connected", False)
+        statuses.append({
+            "section": "Pinterest Publishing",
+            "status": "ok" if connected else "error",
+            "message": f"Browser connected on port {port}" if connected else f"Browser not connected on port {port}. Launch from slot above.",
+        })
+    except Exception as e:
+        statuses.append({
+            "section": "Pinterest Publishing",
+            "status": "error",
+            "message": str(e),
+        })
+
+    # Playwright
+    try:
+        from playwright.sync_api import sync_playwright  # noqa: F401
+        statuses.append({
+            "section": "Playwright",
+            "status": "ok",
+            "message": "Playwright installed (sync_api available)",
+        })
+    except Exception as e:
+        statuses.append({
+            "section": "Playwright",
+            "status": "error",
+            "message": f"Playwright issue: {e}. Run `uv sync` or `pip install playwright`.",
+        })
+
+    # Recent failed jobs
+    try:
+        jobs = list_jobs()
+        failed = [j for j in jobs if j.status == "failed"][:3]
+        if failed:
+            for j in failed:
+                statuses.append({
+                    "section": f"Recent failure: {j.action}",
+                    "status": "error",
+                    "message": j.design_path or "No design path",
+                })
+    except Exception:
+        pass
+
+    return statuses
+
+
+def _render_key_status_section() -> None:
+    """Render the key status/errors expander for debugging."""
+    statuses = _collect_section_status()
+    has_errors = any(s["status"] == "error" for s in statuses)
+    has_warnings = any(s["status"] == "warning" for s in statuses)
+    expanded = has_errors or has_warnings
+
+    with st.expander("Key status / errors (for debugging)", expanded=expanded):
+        st.caption(
+            "Quick health check for each section. Use this to diagnose connection or setup issues. "
+            "Ports come from the browser slots below."
+        )
+        for item in statuses:
+            section = item["section"]
+            status = item["status"]
+            message = item["message"]
+            if status == "ok":
+                st.success(f"**{section}:** {message}")
+            elif status == "warning":
+                st.warning(f"**{section}:** {message}")
+            else:
+                st.error(f"**{section}:** {message}")
 
 
 def _render_slot_editor(slot: BrowserSlot, index: int) -> BrowserSlot:
@@ -105,6 +234,8 @@ def render_config_tab() -> None:
     """Render the configuration tab. Fragment so tab stays stable when other tabs rerun."""
     st.header("Configuration")
     st.caption("Configure browser slots, ports, and basic system settings.")
+
+    _render_key_status_section()
 
     # One-line job summary outside expander
     jobs = list_jobs()

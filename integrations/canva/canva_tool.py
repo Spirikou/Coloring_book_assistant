@@ -19,6 +19,11 @@ from . import config
 
 logger = logging.getLogger(__name__)
 
+try:
+    from core.browser_config import get_port_for_role
+except ImportError:
+    get_port_for_role = None
+
 
 def parse_page_size(page_size_str: Optional[str]) -> tuple[float, float]:
     """
@@ -49,6 +54,8 @@ def create_canva_design_core(
     blank_between: Optional[bool] = None,
     dry_run: bool = False,
     progress_callback: Optional[Callable[[dict], None]] = None,
+    port: Optional[int] = None,
+    debug_mode: bool = False,
 ) -> CanvaDesignOutput:
     """
     Core function to create a Canva design from images in a folder.
@@ -142,8 +149,13 @@ def create_canva_design_core(
     margin_percent = margin_percent if margin_percent is not None else config.MARGIN_PERCENT
     outline_height_percent = outline_height_percent if outline_height_percent is not None else config.OUTLINE_HEIGHT_PERCENT
     blank_between = blank_between if blank_between is not None else config.BLANK_BETWEEN
+
+    resolved_port = port
+    if resolved_port is None and get_port_for_role:
+        resolved_port = get_port_for_role("canva")
     
     try:
+
         # Get browser user data dir
         user_data_dir = config.get_browser_user_data_dir()
         user_data_dir_path = Path(user_data_dir) if user_data_dir else config.CHROME_USER_DATA_DIR
@@ -161,6 +173,8 @@ def create_canva_design_core(
             chrome_user_data_dir=user_data_dir_path,
             chrome_profile=config.BROWSER_PROFILE,
             cloudflare_mode=config.CLOUDFLARE_MODE,
+            port=resolved_port,
+            debug_mode=debug_mode,
         )
         
         with publisher:
@@ -229,8 +243,9 @@ def create_canva_design_core(
         # Provide helpful error messages
         from .browser_setup import check_browser_running
         browser_name = config.BROWSER_TYPE.capitalize()
-        if not check_browser_running():
-            errors.append(f"Browser not running. Make sure {browser_name} is running with: --remote-debugging-port={config.DEBUG_PORT}")
+        check_port = resolved_port if resolved_port is not None else config.DEBUG_PORT
+        if not check_browser_running(check_port):
+            errors.append(f"Browser not running. Make sure {browser_name} is running with: --remote-debugging-port={check_port}")
         
         return CanvaDesignOutput(
             success=False,

@@ -37,6 +37,7 @@ def run_bulk_canva(
     outline_height_percent: float,
     blank_between: bool,
     get_images_in_folder: Callable[[str], list[str]],
+    debug_mode: bool = False,
 ) -> None:
     """Run Canva sequentially for selected design package folders."""
     st.info("Starting bulk Canva run. This tab will stay busy until all designs are processed.")
@@ -67,6 +68,7 @@ def run_bulk_canva(
                 blank_between=blank_between,
                 progress_callback=bulk_progress_callback,
                 selected_images=None,
+                debug_mode=debug_mode,
             )
             notify_completed(
                 "task.completed",

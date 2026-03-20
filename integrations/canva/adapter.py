@@ -10,6 +10,7 @@ import time
 
 from . import config
 from .utils import _find_images
+from core.browser_config import get_port_for_role
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,8 @@ def _create_design_via_multiprocessing(
     progress_callback: Optional[Callable] = None,
     dry_run: bool = False,
     selected_images: Optional[List[str]] = None,
+    port: Optional[int] = None,
+    debug_mode: bool = False,
 ) -> Dict:
     """
     Create Canva design using multiprocessing to isolate from Streamlit's event loop.
@@ -66,6 +69,8 @@ def _create_design_via_multiprocessing(
 
         from .multiprocess_designer import run_designer_in_process
 
+        resolved_port = port if port is not None else get_port_for_role("canva")
+
         process = multiprocessing.Process(
             target=run_designer_in_process,
             args=(
@@ -78,6 +83,8 @@ def _create_design_via_multiprocessing(
                 progress_queue,
                 result_queue,
                 dry_run,
+                resolved_port,
+                debug_mode,
             ),
             daemon=False,
         )
@@ -200,6 +207,7 @@ def create_design_with_progress(
     force_streamlit_mode: bool = False,
     dry_run: bool = False,
     selected_images: Optional[List[str]] = None,
+    debug_mode: bool = False,
 ) -> Dict:
     """
     Create Canva design with progress tracking.
@@ -231,6 +239,8 @@ def create_design_with_progress(
             progress_callback=progress_callback,
             dry_run=dry_run,
             selected_images=selected_images,
+            port=get_port_for_role("canva"),
+            debug_mode=debug_mode,
         )
 
     # Direct call for non-Streamlit contexts
@@ -264,6 +274,8 @@ def create_design_with_progress(
             outline_height_percent=outline_height_percent,
             blank_between=blank_between,
             dry_run=dry_run,
+            port=get_port_for_role("canva"),
+            debug_mode=debug_mode,
         )
 
         result_dict = result.model_dump() if hasattr(result, "model_dump") else dict(result)

@@ -50,6 +50,7 @@ class CanvaDesignWorkflow:
         progress_callback: Optional[Callable] = None,
         dry_run: bool = False,
         selected_images: Optional[List[str]] = None,
+        debug_mode: bool = False,
     ) -> Dict:
         """
         Create Canva design from images in folder.
@@ -86,4 +87,5 @@ class CanvaDesignWorkflow:
             force_streamlit_mode=force_streamlit,
             dry_run=dry_run,
             selected_images=selected_images,
+            debug_mode=debug_mode,
         )

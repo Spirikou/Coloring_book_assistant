@@ -1,8 +1,10 @@
 {
+  "sidebar_create_button": {"x": 35, "y": 80, "note": "Top-left sidebar + Create button - try first"},
   "design_modal": {
     "width_input": {"x": 575, "y": 180},
     "height_input": {"x": 975, "y": 180},
-    "unit_selector": {"x": 1100, "y": 180}
+    "unit_selector": {"x": 1100, "y": 180},
+    "create_button": {"x": 1200, "y": 200, "note": "Position in Custom size panel, right of Width/Height/Units row"}
   },
   "uploads_panel": {
     "uploads_sidebar_button": {

@@ -17,6 +17,7 @@ except Exception as e:
     print(f"Warning: Could not initialize workflow logger: {e}")
 
 from .pinterest_tool import publish_pinterest_pins_core, PinterestPublishOutput
+from core.browser_config import get_port_for_role
 
 try:
     from .config import PROCESS_TIMEOUT
@@ -56,7 +57,8 @@ def _is_in_streamlit_context() -> bool:
 def _publish_via_multiprocessing(
     folder_path: str,
     board_name: str,
-    progress_callback: Optional[Callable] = None
+    progress_callback: Optional[Callable] = None,
+    port: Optional[int] = None,
 ) -> Dict:
     """
     Publish pins using multiprocessing to isolate from Streamlit's event loop.
@@ -72,7 +74,9 @@ def _publish_via_multiprocessing(
     if workflow_logger:
         workflow_logger.log("Using multiprocessing to isolate publisher from Streamlit", "INFO")
     logger.info("Using multiprocessing to isolate publisher from Streamlit")
-    
+
+    resolved_port = port if port is not None else get_port_for_role("pinterest")
+
     # Create queues for communication
     progress_queue = multiprocessing.Queue()
     result_queue = multiprocessing.Queue()
@@ -83,7 +87,7 @@ def _publish_via_multiprocessing(
     # Create and start process
     process = multiprocessing.Process(
         target=run_publisher_in_process,
-        args=(folder_path, board_name, progress_queue, result_queue, False),
+        args=(folder_path, board_name, progress_queue, result_queue, False, resolved_port),
         daemon=False
     )
     
@@ -204,7 +208,10 @@ def publish_pins_with_progress(
         if workflow_logger:
             workflow_logger.log("Using multiprocessing for Streamlit isolation", "INFO")
         logger.info("Using multiprocessing to isolate from Streamlit's event loop")
-        return _publish_via_multiprocessing(folder_path, board_name, progress_callback)
+        return _publish_via_multiprocessing(
+            folder_path, board_name, progress_callback,
+            port=get_port_for_role("pinterest"),
+        )
     
     # Direct call for non-Streamlit contexts (CLI, testing, etc.)
     try:
@@ -230,6 +237,7 @@ def publish_pins_with_progress(
             board_name=board_name,
             dry_run=False,
             force_streamlit_mode=False,  # Not in Streamlit, use direct call
+            port=get_port_for_role("pinterest"),
         )
         
         if workflow_logger:

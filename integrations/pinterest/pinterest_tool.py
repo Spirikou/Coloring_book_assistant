@@ -29,6 +29,11 @@ from .pinterest_publisher_ocr import PinterestPublisher, find_json_file
 from pathlib import Path
 import logging
 
+try:
+    from core.browser_config import get_port_for_role
+except ImportError:
+    get_port_for_role = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -70,6 +75,7 @@ def publish_pinterest_pins_core(
     board_name: str,
     dry_run: bool = False,
     force_streamlit_mode: bool = False,
+    port: Optional[int] = None,
 ) -> PinterestPublishOutput:
     """
     Core function to publish images from a folder to Pinterest as pins.
@@ -132,6 +138,10 @@ def publish_pinterest_pins_core(
         )
     
     try:
+        resolved_port = port
+        if resolved_port is None and get_port_for_role:
+            resolved_port = get_port_for_role("pinterest")
+
         if workflow_logger:
             workflow_logger.log_action("creating_pinterest_publisher", {
                 "folder_path": folder_path,
@@ -145,6 +155,7 @@ def publish_pinterest_pins_core(
             dry_run=dry_run,
             connect_existing=True,  # Always use existing Chrome
             force_streamlit_mode=force_streamlit_mode,
+            port=resolved_port,
         ) as publisher:
             
             if workflow_logger:

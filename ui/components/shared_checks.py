@@ -250,6 +250,15 @@ def render_combined_checks(state: dict, tab_name: str, *, key_prefix: str | None
         _render_system_check_content(check_results)
         st.divider()
         _render_prerequisites_content(state, tab_name, prerq, prefix)
+        if tab_name == "canva":
+            st.divider()
+            st.checkbox(
+                "Canva debug mode (screenshots with click circles)",
+                key=f"{prefix}_canva_debug_mode",
+                help="Captures screenshots at key stages with circled click points. Saved to debug/canva_debug/",
+            )
+
+    canva_debug_mode = st.session_state.get(f"{prefix}_canva_debug_mode", False) if tab_name == "canva" else False
 
     return {
         "check_results": check_results,
@@ -257,4 +266,5 @@ def render_combined_checks(state: dict, tab_name: str, *, key_prefix: str | None
         "checks": prerq["checks"],
         "images_folder_path": prerq["images_folder_path"],
         "image_count": prerq["image_count"],
+        "canva_debug_mode": canva_debug_mode,
     }

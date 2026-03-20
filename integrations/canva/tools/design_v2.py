@@ -32,7 +32,48 @@ if COORDINATES_PATH.exists():
         logger.debug(f"Could not load coordinates config: {e}")
 
 
-def create_design(page: Page, width_in: float, height_in: float, page_count: int) -> None:
+def _create_modal_opened(page: Page) -> bool:
+    """Check if the create design modal (with Custom size) is open."""
+    try:
+        page.wait_for_timeout(500)
+        if page.locator('text=Custom size').first.is_visible(timeout=1000):
+            return True
+        if page.locator('input[type="number"], input[type="text"]').first.is_visible(timeout=1000):
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _dismiss_magic_layers_popup(page: Page) -> None:
+    """Dismiss Magic Layers popup if visible (click X or Escape)."""
+    try:
+        # Try close button first, then Escape
+        close_selectors = [
+            'button[aria-label*="Close" i]',
+            '[aria-label*="Close" i]',
+            'button:has-text("Close")',
+        ]
+        for sel in close_selectors:
+            el = page.locator(sel).first
+            if el.is_visible(timeout=500):
+                el.click()
+                page.wait_for_timeout(500)
+                return
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(500)
+    except Exception:
+        pass
+
+
+def create_design(
+    page: Page,
+    width_in: float,
+    height_in: float,
+    page_count: int,
+    *,
+    debug_context: dict | None = None,
+) -> None:
     """
     Create a new custom-size design with the requested dimensions and pages.
 
@@ -52,36 +93,74 @@ def create_design(page: Page, width_in: float, height_in: float, page_count: int
     """
 
     # Step 1: Click to create a new design
+    # 1a. Try coordinates FIRST (sidebar Create at top-left) - avoids Magic Layers confusion
     logger.info("Step 1: Opening create design dialog...")
+    step1_x, step1_y = None, None
+    if COORDINATES_CONFIG and "sidebar_create_button" in COORDINATES_CONFIG:
+        c = COORDINATES_CONFIG["sidebar_create_button"]
+        if c.get("x") is not None and c.get("y") is not None:
+            step1_x, step1_y = c["x"], c["y"]
+    if step1_x is None or step1_y is None:
+        from .. import config as canva_config
+        step1_x = getattr(canva_config, "CANVA_SIDEBAR_CREATE_BUTTON_X", 35)
+        step1_y = getattr(canva_config, "CANVA_SIDEBAR_CREATE_BUTTON_Y", 80)
+
+    create_clicked = False
+    step1_click = (step1_x, step1_y)
+    try:
+        page.mouse.click(step1_x, step1_y)
+        page.wait_for_timeout(2000)
+        if _create_modal_opened(page):
+            create_clicked = True
+            logger.info(f"Clicked sidebar Create at ({step1_x}, {step1_y}) - create modal opened")
+        else:
+            _dismiss_magic_layers_popup(page)
+            page.wait_for_timeout(500)
+    except Exception as e:
+        logger.debug(f"Coordinate click failed: {e}")
+
+    # 1b. Selector fallbacks only if coordinates failed
     create_selectors = [
+        'button[aria-label="Create a design"]',
         'button:has-text("Create a design")',
-        'button:has-text("Create")',
         'a:has-text("Create a design")',
         'text=Custom size',
         '[data-testid*="create"]',
-        'button[aria-label*="Create" i]',
     ]
-
-    create_clicked = False
-    for selector in create_selectors:
-        try:
-            element = page.locator(selector).first
-            if element.is_visible(timeout=3000):
-                element.click()
-                page.wait_for_timeout(2000)
-                create_clicked = True
-                logger.info(f"Clicked create design with selector: {selector}")
-                break
-        except:
-            continue
+    if not create_clicked:
+        for selector in create_selectors:
+            try:
+                element = page.locator(selector).first
+                if element.is_visible(timeout=3000):
+                    box = element.bounding_box()
+                    if box:
+                        step1_click = (int(box["x"] + box["width"] / 2), int(box["y"] + box["height"] / 2))
+                    element.click()
+                    page.wait_for_timeout(2000)
+                    if _create_modal_opened(page):
+                        create_clicked = True
+                        logger.info(f"Clicked create design with selector: {selector}")
+                        break
+                    _dismiss_magic_layers_popup(page)
+            except Exception:
+                continue
 
     if not create_clicked:
         try:
+            el = page.locator("text=Custom size").first
+            if el.is_visible(timeout=5000):
+                box = el.bounding_box()
+                if box:
+                    step1_click = (int(box["x"] + box["width"] / 2), int(box["y"] + box["height"] / 2))
             page.click("text=Custom size", timeout=5000)
             page.wait_for_timeout(2000)
             create_clicked = True
-        except:
+        except Exception:
             raise Exception("Could not find 'Create a design' or 'Custom size' button")
+
+    if debug_context and step1_click:
+        from .debug_screenshot import maybe_save_debug
+        maybe_save_debug(debug_context, page, "create_modal_opened", [step1_click])
 
     # Wait for modal to fully load and verify it's visible
     logger.info("Waiting for custom size modal to fully load...")
@@ -197,6 +276,15 @@ def create_design(page: Page, width_in: float, height_in: float, page_count: int
     else:
         logger.info("✅ Unit 'in' selected successfully - proceeding to fill dimensions")
         page.wait_for_timeout(500)
+
+    unit_click = None
+    if COORDINATES_CONFIG and "design_modal" in COORDINATES_CONFIG:
+        uc = COORDINATES_CONFIG["design_modal"].get("unit_selector", {})
+        if uc.get("x") and uc.get("y"):
+            unit_click = (uc["x"], uc["y"])
+    if debug_context and unit_click:
+        from .debug_screenshot import maybe_save_debug
+        maybe_save_debug(debug_context, page, "unit_selected", [unit_click])
 
     # Step 3: Fill width
     logger.info(f"Step 3: Filling width: {width_in} inches...")
@@ -355,6 +443,15 @@ def create_design(page: Page, width_in: float, height_in: float, page_count: int
             pass
         raise Exception("Could not find width input field. Tried text-based, XPath, generic, and keyboard approaches.")
 
+    width_click = None
+    if COORDINATES_CONFIG and "design_modal" in COORDINATES_CONFIG:
+        wc = COORDINATES_CONFIG["design_modal"].get("width_input", {})
+        if wc.get("x") is not None and wc.get("y") is not None:
+            width_click = (wc["x"], wc["y"])
+    if debug_context and width_click:
+        from .debug_screenshot import maybe_save_debug
+        maybe_save_debug(debug_context, page, "width_filled", [width_click])
+
     # Step 4: Fill height
     logger.info(f"Step 4: Filling height: {height_in} inches...")
     height_filled = False
@@ -496,29 +593,79 @@ def create_design(page: Page, width_in: float, height_in: float, page_count: int
     if not height_filled:
         raise Exception("Could not find height input field. Tried text-based, XPath, generic, and keyboard approaches.")
 
+    height_click = None
+    if COORDINATES_CONFIG and "design_modal" in COORDINATES_CONFIG:
+        hc = COORDINATES_CONFIG["design_modal"].get("height_input", {})
+        if hc.get("x") is not None and hc.get("y") is not None:
+            height_click = (hc["x"], hc["y"])
+    if debug_context and height_click:
+        from .debug_screenshot import maybe_save_debug
+        maybe_save_debug(debug_context, page, "height_filled", [height_click])
+
     # Step 5: Click "Create new design"
+    # Canva may use icon-only buttons with aria-label (no visible text) - has-text() won't match
     logger.info("Step 5: Clicking 'Create new design' button...")
     create_button_clicked = False
 
     create_button_selectors = [
-        'button:has-text("Create new design")',
-        'button:has-text("Create design")',
-        'button:has-text("Create")',
-        '[data-testid*="create"]',
-        'button[type="submit"]',
+        # Modal-scoped first (avoids matching sidebar "Create a design" button)
+        ('[role="dialog"] button[aria-label="Create a design"]', True),
+        ('[role="dialog"] button[aria-label="Create new design"]', True),
+        ('[role="dialog"] button:has-text("Create new design")', True),
+        ('[role="dialog"] button:has-text("Create design")', True),
+        # Aria-label fallbacks - use .last to prefer modal's button over sidebar (modal rendered last)
+        ('button[aria-label="Create a design"]', False),
+        ('button[aria-label="Create new design"]', False),
+        ('button[aria-label*="Create" i]', False),
+        # Text-based (legacy - when button has visible text)
+        ('button:has-text("Create new design")', True),
+        ('button:has-text("Create design")', True),
+        ('button:has-text("Create")', False),
+        ('[data-testid*="create"]', True),
+        ('button[type="submit"]', True),
     ]
 
-    for selector in create_button_selectors:
+    create_btn_click = None
+    for selector, use_first in create_button_selectors:
         try:
-            create_button = page.locator(selector).first
+            loc = page.locator(selector)
+            create_button = loc.first if use_first else loc.last
             if create_button.is_visible(timeout=2000):
+                box = create_button.bounding_box()
+                if box:
+                    create_btn_click = (int(box["x"] + box["width"] / 2), int(box["y"] + box["height"] / 2))
                 create_button.click()
                 page.wait_for_timeout(4000)
                 create_button_clicked = True
-                logger.info(f"Clicked create button with selector: {selector}")
+                logger.info(f"Clicked create button with selector: {selector} (use_first={use_first})")
                 break
-        except:
+        except Exception:
             continue
+
+    # Coordinate-based fallback when selectors fail
+    if not create_button_clicked:
+        from .. import config as canva_config
+        x, y = None, None
+        if COORDINATES_CONFIG and "design_modal" in COORDINATES_CONFIG:
+            coords = COORDINATES_CONFIG["design_modal"].get("create_button", {})
+            if coords.get("x", 0) > 0 or coords.get("y", 0) > 0:
+                x, y = coords.get("x", 0), coords.get("y", 0)
+        if x is None or y is None:
+            x = getattr(canva_config, "CANVA_CREATE_BUTTON_FALLBACK_X", 35)
+            y = getattr(canva_config, "CANVA_CREATE_BUTTON_FALLBACK_Y", 80)
+        try:
+            logger.info(f"Trying coordinate-based fallback at ({x}, {y})")
+            create_btn_click = (x, y)
+            page.mouse.click(x, y)
+            page.wait_for_timeout(4000)
+            create_button_clicked = True
+            logger.info(f"Clicked create button using coordinates ({x}, {y})")
+        except Exception as e:
+            logger.debug(f"Coordinate fallback failed: {e}")
+
+    if debug_context and create_btn_click:
+        from .debug_screenshot import maybe_save_debug
+        maybe_save_debug(debug_context, page, "create_button_clicked", [create_btn_click])
 
     if not create_button_clicked:
         raise Exception("Could not find 'Create new design' button")

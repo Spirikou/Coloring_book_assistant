@@ -43,6 +43,8 @@ def run_designer_in_process(
     progress_queue: multiprocessing.Queue,
     result_queue: multiprocessing.Queue,
     dry_run: bool = False,
+    port: Optional[int] = None,
+    debug_mode: bool = False,
 ) -> None:
     """
     Run Canva design creator in separate process - isolated from Streamlit.
@@ -109,6 +111,8 @@ def run_designer_in_process(
             blank_between=blank_between,
             dry_run=dry_run,
             progress_callback=_progress_callback,
+            port=port,
+            debug_mode=debug_mode,
         )
 
         result_dict = result.model_dump() if hasattr(result, "model_dump") else dict(result)

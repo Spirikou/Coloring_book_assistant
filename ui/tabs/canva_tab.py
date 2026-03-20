@@ -77,7 +77,7 @@ def render_canva_tab(workflow_state: dict | None) -> None:
         st.subheader("Bulk setup")
         # Use shared combined checks with a distinct key prefix so bulk and single
         # can coexist without widget key collisions.
-        render_canva_combined_checks(bulk_state, key_prefix="canva_bulk")
+        bulk_prerequisites = render_canva_combined_checks(bulk_state, key_prefix="canva_bulk")
 
         with st.expander("Bulk Canva — run multiple designs (sequential)", expanded=True):
             from core.persistence import list_design_packages
@@ -164,6 +164,7 @@ def render_canva_tab(workflow_state: dict | None) -> None:
                     outline_height_percent=float(bulk_outline_height_percent),
                     blank_between=bool(bulk_blank_between),
                     get_images_in_folder=get_images_in_folder,
+                    debug_mode=bulk_prerequisites.get("canva_debug_mode", False),
                 )
 
         return
@@ -262,6 +263,7 @@ def render_canva_tab(workflow_state: dict | None) -> None:
                             blank_between=config["blank_between"],
                             progress_callback=progress_callback,
                             selected_images=selected if selected else None,
+                            debug_mode=prerequisites.get("canva_debug_mode", False),
                         )
                         state["canva_results"] = results
                         state["canva_status"] = "completed" if results.get("success", False) else "failed"

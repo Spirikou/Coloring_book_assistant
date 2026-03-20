@@ -29,7 +29,8 @@ def run_publisher_in_process(
     board_name: str,
     progress_queue: multiprocessing.Queue,
     result_queue: multiprocessing.Queue,
-    dry_run: bool = False
+    dry_run: bool = False,
+    port: Optional[int] = None,
 ) -> None:
     """
     Run publisher in separate process - isolated from Streamlit.
@@ -69,6 +70,7 @@ def run_publisher_in_process(
             dry_run=dry_run,
             connect_existing=True,  # Always use existing browser
             force_streamlit_mode=False,  # Not in Streamlit in this process!
+            port=port,
         ) as publisher:
             
             if workflow_logger:

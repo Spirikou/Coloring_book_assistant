@@ -46,3 +46,4 @@ generated_images/
 # Debug screenshots
 canva_after_design_creation.png
 canva_modal_debug.png
+debug/

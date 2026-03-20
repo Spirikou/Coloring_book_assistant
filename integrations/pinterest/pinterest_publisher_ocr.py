@@ -149,12 +149,14 @@ class PinterestPublisher:
         dry_run: bool = False,
         connect_existing: bool = False,
         force_streamlit_mode: bool = False,
+        port: Optional[int] = None,
     ):
         self.folder = Path(folder_path)
         self.board_name = board_name
         self.dry_run = dry_run
         self.connect_existing = connect_existing
         self.force_streamlit_mode = force_streamlit_mode
+        self.port = port if port is not None else DEBUG_PORT
         
         # Find and load JSON config
         json_file = find_json_file(self.folder)
@@ -189,9 +191,9 @@ class PinterestPublisher:
         """
         if self.connect_existing:
             browser_name = BROWSER_TYPE.capitalize()
-            logger.info(f"Connecting to existing {browser_name} on port {DEBUG_PORT}...")
+            logger.info(f"Connecting to existing {browser_name} on port {self.port}...")
             if workflow_logger:
-                workflow_logger.log(f"Starting browser connection to {browser_name} on port {DEBUG_PORT}", "INFO")
+                workflow_logger.log(f"Starting browser connection to {browser_name} on port {self.port}", "INFO")
             
             # Simple direct approach - works in separate process (multiprocessing)
             # or in normal Python process (CLI). No threading needed.
@@ -199,11 +201,11 @@ class PinterestPublisher:
             try:
                 # Try localhost first (works for both IPv4 and IPv6), fallback to 127.0.0.1
                 try:
-                    logger.info(f"Connecting to browser via localhost:{DEBUG_PORT}")
-                    self.cdp_browser = self.playwright.chromium.connect_over_cdp(f"http://localhost:{DEBUG_PORT}")
+                    logger.info(f"Connecting to browser via localhost:{self.port}")
+                    self.cdp_browser = self.playwright.chromium.connect_over_cdp(f"http://localhost:{self.port}")
                 except Exception as e1:
-                    logger.info(f"localhost failed, trying 127.0.0.1:{DEBUG_PORT} - {e1}")
-                    self.cdp_browser = self.playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{DEBUG_PORT}")
+                    logger.info(f"localhost failed, trying 127.0.0.1:{self.port} - {e1}")
+                    self.cdp_browser = self.playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{self.port}")
                 
                 contexts = self.cdp_browser.contexts
                 logger.info(f"Found {len(contexts)} browser contexts")

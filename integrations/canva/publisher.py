@@ -35,6 +35,8 @@ class CanvaPublisher:
     chrome_user_data_dir: Path | None = None
     chrome_profile: str | None = None
     cloudflare_mode: str = "auto"  # "auto" or "manual"
+    port: int | None = None  # CDP port when connect_existing; overrides remote_debug_url
+    debug_mode: bool = False  # When True, capture screenshots with circled click points
     
     def __post_init__(self):
         """Initialize instance variables for browser lifecycle."""
@@ -62,15 +64,16 @@ class CanvaPublisher:
         
         # MODE 1: Connect to existing browser (exactly like Pinterest agent)
         if self.connect_existing:
+            cdp_port = self.port if self.port is not None else config.DEBUG_PORT
             browser_name = config.BROWSER_TYPE.capitalize()
-            logger.info(f"Connecting to existing {browser_name} on port {config.DEBUG_PORT}...")
+            logger.info(f"Connecting to existing {browser_name} on port {cdp_port}...")
             try:
                 # Exact same pattern as Pinterest agent
                 # Try localhost first (works for both IPv4 and IPv6), fallback to 127.0.0.1
                 try:
-                    self.cdp_browser = self.playwright.chromium.connect_over_cdp(f"http://localhost:{config.DEBUG_PORT}")
-                except:
-                    self.cdp_browser = self.playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{config.DEBUG_PORT}")
+                    self.cdp_browser = self.playwright.chromium.connect_over_cdp(f"http://localhost:{cdp_port}")
+                except Exception:
+                    self.cdp_browser = self.playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{cdp_port}")
                 contexts = self.cdp_browser.contexts
                 if contexts:
                     self.browser = contexts[0]
@@ -80,12 +83,12 @@ class CanvaPublisher:
             except Exception as e:
                 logger.error(f"Failed to connect: {e}")
                 logger.error("")
-                logger.error(f"Make sure {browser_name} is running with: --remote-debugging-port={config.DEBUG_PORT}")
+                logger.error(f"Make sure {browser_name} is running with: --remote-debugging-port={cdp_port}")
                 logger.error("")
                 browser_path = config.get_browser_path()
                 user_data_dir = config.get_browser_user_data_dir()
                 logger.error(f"Start {browser_name} with:")
-                logger.error(f'  & "{browser_path}" --remote-debugging-port={config.DEBUG_PORT} --user-data-dir="{user_data_dir}" --profile-directory={config.BROWSER_PROFILE}')
+                logger.error(f'  & "{browser_path}" --remote-debugging-port={cdp_port} --user-data-dir="{user_data_dir}" --profile-directory={config.BROWSER_PROFILE}')
                 logger.error("")
                 logger.error("Or use the helper command:")
                 logger.error(f"  {config.get_browser_startup_command()}")
@@ -312,7 +315,20 @@ class CanvaPublisher:
         # Step 1: Create design with 1 page (pages will be added dynamically)
         logger.info("Creating design with 1 page (pages will be added as images are placed)...")
         design_created_at = datetime.now(timezone.utc)
-        create_design(self.page, self.page_size[0], self.page_size[1], page_count=1)
+        debug_context = None
+        if self.debug_mode:
+            project_root = Path(__file__).resolve().parent.parent.parent
+            debug_dir = project_root / "debug" / "canva_debug" / datetime.now().strftime("%Y%m%d_%H%M%S")
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            debug_context = {"enabled": True, "output_dir": debug_dir, "step": 0}
+            logger.info(f"Canva debug mode: screenshots will be saved to {debug_dir}")
+        create_design(
+            self.page,
+            self.page_size[0],
+            self.page_size[1],
+            page_count=1,
+            debug_context=debug_context,
+        )
         
         # Wait for design to be created and new tab to open
         logger.info("Waiting for design editor to open in new tab...")
@@ -490,7 +506,7 @@ class CanvaPublisher:
                 # Upload and place the image (clicks Uploads button each time for safety)
                 logger.info(f"Uploading and placing {img.name}...")
                 upload_start = datetime.now(timezone.utc)
-                upload_and_place_single_image(self.page, img)
+                upload_and_place_single_image(self.page, img, debug_context=debug_context)
                 upload_end = datetime.now(timezone.utc)
                 logger.info(f"✅ Uploaded and placed {img.name} on page {current_page_index + 1}")
                 

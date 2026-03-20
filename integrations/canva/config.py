@@ -67,6 +67,18 @@ CANVA_PROCESS_TIMEOUT_PER_IMAGE: int = 45  # Seconds per image (upload + place)
 CANVA_PROCESS_TIMEOUT_MAX: int = 1800  # Maximum timeout (30 min)
 
 # ============================================================================
+# CANVA COORDINATES - Coordinate fallbacks (used when selectors fail)
+# ============================================================================
+# Sidebar Create button (top-left + icon) - Step 1, tried first
+CANVA_SIDEBAR_CREATE_BUTTON_X: int = 35
+CANVA_SIDEBAR_CREATE_BUTTON_Y: int = 80
+
+# Create new design button (in Custom size modal) - Step 5 fallback
+# Position in the Custom size panel, to the right of the Width/Height/Units row.
+CANVA_CREATE_BUTTON_FALLBACK_X: int = 1200
+CANVA_CREATE_BUTTON_FALLBACK_Y: int = 200
+
+# ============================================================================
 # DEFAULTS (for workflow integration)
 # ============================================================================
 DEFAULT_PAGE_SIZE = "8.625x8.75"
