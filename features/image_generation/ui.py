@@ -1116,6 +1116,13 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
         automated_running or (mj_automated_process is not None and not mj_automated_process.is_alive())
     ):
         shared = st.session_state.mj_automated_shared
+        try:
+            from core.notifications import process_pending_notifications
+            n = process_pending_notifications(shared)
+            if n > 0:
+                st.rerun()
+        except Exception:
+            pass
         for key in ("publish_status", "publish_error", "uxd_action_status", "uxd_action_error", "download_status", "download_error"):
             if key in shared:
                 mj_status[key] = shared[key]
@@ -1129,6 +1136,13 @@ def render_image_generation_tab(state: dict, generated_designs: list | None = No
         automated_running or (mj_automated_process is not None and not mj_automated_process.is_alive())
     ) and "mj_automated_cover_shared" in st.session_state:
         cover_shared = st.session_state.mj_automated_cover_shared
+        try:
+            from core.notifications import process_pending_notifications
+            n = process_pending_notifications(cover_shared)
+            if n > 0:
+                st.rerun()
+        except Exception:
+            pass
         cover_status = st.session_state.mj_cover_status
         for key in ("publish_status", "publish_error", "uxd_action_status", "uxd_action_error", "download_status", "download_error"):
             if key in cover_shared:

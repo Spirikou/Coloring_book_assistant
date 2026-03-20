@@ -120,6 +120,31 @@ def render_config_tab() -> None:
     with st.expander("Current jobs", expanded=bool(running)):
         _render_current_jobs_section()
 
+    st.subheader("Notifications")
+    st.caption("Control when completion alerts appear (in-app toast and notification center).")
+    if "notification_settings" not in st.session_state:
+        from config import (
+            NOTIFICATIONS_ENABLED,
+            NOTIFICATIONS_IN_APP_ENABLED,
+            NOTIFY_ON_SINGLE_TASKS,
+            NOTIFY_ON_WORKFLOWS,
+        )
+        st.session_state.notification_settings = {
+            "enabled": NOTIFICATIONS_ENABLED,
+            "in_app": NOTIFICATIONS_IN_APP_ENABLED,
+            "single_tasks": NOTIFY_ON_SINGLE_TASKS,
+            "workflows": NOTIFY_ON_WORKFLOWS,
+        }
+    ns = st.session_state.notification_settings
+    c1, c2 = st.columns(2)
+    with c1:
+        ns["enabled"] = st.toggle("Notifications enabled", value=ns.get("enabled", True), key="notif_enabled")
+        ns["in_app"] = st.toggle("In-app notifications", value=ns.get("in_app", True), key="notif_in_app")
+    with c2:
+        ns["single_tasks"] = st.toggle("Notify on single tasks", value=ns.get("single_tasks", True), key="notif_single_tasks")
+        ns["workflows"] = st.toggle("Notify on workflows", value=ns.get("workflows", True), key="notif_workflows")
+    st.session_state.notification_settings = ns
+
     slots = load_slots()
 
     st.subheader("Browser slots")

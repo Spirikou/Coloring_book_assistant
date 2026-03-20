@@ -10,6 +10,7 @@ from typing import Any
 from config import get_midjourney_config
 from core.browser_config import check_browser_connection, get_port_for_role
 from core.jobs import create_job, has_running_image_job, update_job_status
+from core.notifications import queue_notification_for_subprocess
 from core.pipeline_templates import PIPELINE_STEPS, get_step_by_id
 
 
@@ -250,6 +251,15 @@ def _run_pipeline_process(
 
             shared["step_status"] = "completed"
             shared["workflow_state"] = _prepare_state_for_serialization(workflow_state) if workflow_state else {}
+            step_label = step_labels.get(step_id, step_id)
+            queue_notification_for_subprocess(
+                shared,
+                "task.completed",
+                task_id=f"orchestration:{design_package_path or 'pipeline'}:{step_id}:{i}",
+                task_name=step_label,
+                task_index=i + 1,
+                task_total=len(steps),
+            )
 
         except Exception as e:
             # Mark image job as failed if applicable.
@@ -274,6 +284,13 @@ def _run_pipeline_process(
     shared["status"] = "completed"
     shared["running"] = False
     shared["design_package_path"] = design_package_path
+    queue_notification_for_subprocess(
+        shared,
+        "workflow.completed",
+        task_id=f"orchestration:{design_package_path or 'pipeline'}",
+        task_name="Orchestration Pipeline",
+        result_summary=f"{len(steps)} step(s)",
+    )
 
 
 def _prepare_state_for_serialization(state: dict) -> dict:

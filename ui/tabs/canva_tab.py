@@ -266,6 +266,13 @@ def render_canva_tab(workflow_state: dict | None) -> None:
                         state["canva_results"] = results
                         state["canva_status"] = "completed" if results.get("success", False) else "failed"
                         _persist_canva_state(state, from_workflow)
+                        if state["canva_status"] == "completed":
+                            from core.notifications import notify_completed
+                            notify_completed(
+                                "task.completed",
+                                task_id=state.get("design_package_path", "canva") or "canva",
+                                task_name="Canva Design",
+                            )
                     st.rerun()
                 except Exception as e:
                     import traceback

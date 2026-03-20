@@ -58,6 +58,16 @@ GUIDE_CHAT_MODEL_TEMPERATURE = _float_env("CB_GUIDE_CHAT_MODEL_TEMPERATURE", 0.3
 IMAGE_EVALUATIONS_FILE = "image_evaluations.json"
 IMAGE_MIN_SCORE_THRESHOLD = 70
 
+# -----------------------------------------------------------------------------
+# Notifications (task/workflow completion alerts)
+# Override via env: CB_NOTIFICATIONS_ENABLED, CB_NOTIFY_ON_SINGLE_TASKS, etc.
+# -----------------------------------------------------------------------------
+NOTIFICATIONS_ENABLED = os.getenv("CB_NOTIFICATIONS_ENABLED", "true").lower() in ("true", "1", "yes")
+NOTIFICATIONS_IN_APP_ENABLED = os.getenv("CB_NOTIFICATIONS_IN_APP_ENABLED", "true").lower() in ("true", "1", "yes")
+NOTIFY_ON_SINGLE_TASKS = os.getenv("CB_NOTIFY_ON_SINGLE_TASKS", "true").lower() in ("true", "1", "yes")
+NOTIFY_ON_WORKFLOWS = os.getenv("CB_NOTIFY_ON_WORKFLOWS", "true").lower() in ("true", "1", "yes")
+NOTIFICATION_TOAST_DURATION_SECONDS = int(os.getenv("CB_NOTIFICATION_TOAST_DURATION_SECONDS", "5"))
+
 # Midjourney config (integrated from midjourney_agent config.json)
 # get_midjourney_config() returns flat dict with keys expected by integrations.midjourney
 # Optional: config.json in project root can override (e.g. after running midjourney-agent setup)

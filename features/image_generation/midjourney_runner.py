@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 from typing import Callable, TypeVar
 
+from core.notifications import queue_notification_for_subprocess
 from integrations.midjourney.config import get_file_config_overrides
 from integrations.midjourney.utils.logging_config import logger
 
@@ -753,6 +754,18 @@ def run_automated_thread(
             coordinates_viewport=coordinates_viewport,
             debug_show_clicks=debug_show_clicks,
         )
+        batch_idx = shared.get("batch_current_index", 1)
+        batch_total = shared.get("batch_total", 1)
+        title = shared.get("batch_current_design_title", "Design") or "Design"
+        queue_notification_for_subprocess(
+            shared,
+            "task.completed",
+            task_id=f"mj:{output_folder}:{batch_idx}",
+            task_name="Midjourney Pipeline",
+            task_index=batch_idx,
+            task_total=batch_total,
+            result_summary=title,
+        )
     except Exception as e:
         logger.exception("Automated workflow failed: %s", e)
         shared["publish_status"] = "error"
@@ -894,6 +907,15 @@ def run_batch_automated_thread(
         batch_results.append({"design_index": original_index, "folder_path": str(output_folder)})
 
     shared["batch_current_design_title"] = ""
+    total = len(designs_with_folders)
+    if total > 1:
+        queue_notification_for_subprocess(
+            shared,
+            "workflow.completed",
+            task_id=f"mj_batch:{total}",
+            task_name="Bulk Image Gen",
+            result_summary=f"{total} design(s)",
+        )
     if shared.get("publish_status") == "running":
         shared["publish_status"] = "completed"
     if shared.get("uxd_action_status") == "running":

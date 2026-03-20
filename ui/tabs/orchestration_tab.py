@@ -15,6 +15,7 @@ from core.pipeline_templates import (
 )
 from core.pipeline_runner import run_pipeline
 from core.jobs import has_running_image_job
+from core.notifications import process_pending_notifications
 from core.persistence import list_design_packages, load_design_package
 
 
@@ -294,12 +295,16 @@ def render_orchestration_tab() -> None:
     running = process is not None and shared is not None and shared.get("running", False)
 
     if running and process and process.is_alive():
+        n = process_pending_notifications(shared)
+        if n > 0:
+            st.rerun()
         _render_progress(shared, pipeline)
         if st.button("Refresh status", key="orchestrator_refresh_btn"):
             st.rerun()
         st.stop()
 
     if process and not process.is_alive() and shared:
+        process_pending_notifications(shared)
         status = shared.get("status", "")
         if status == "completed":
             st.success("Pipeline completed successfully!")

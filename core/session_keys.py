@@ -8,6 +8,8 @@ Global / app.py
 - workflow_state          Current design package (dict); used by Image Gen, Canva, Pinterest, Orchestration
 - generated_designs        List of design states from Design Gen concept flow (for batch image gen)
 - is_running              True while any long-running task (e.g. design gen) is active
+- notifications           List of notification events (core/notifications)
+- notification_settings   Overrides for notification toggles (Config tab)
 
 Design Generation (features/design_generation/ui.py)
 ----------------------------------------------------

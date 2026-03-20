@@ -32,6 +32,7 @@ from ui.tabs.orchestration_tab import render_orchestration_tab
 from ui.tabs.progress_tab import render_progress_tab
 from ui.tabs.config_tab import render_config_tab
 from ui.components.design_selector import render_design_package_selector
+from ui.components.notification_center import render_notification_center_compact, render_notification_toast
 from features.design_generation.ui import render_design_generation_tab
 from features.image_generation.ui import render_image_generation_tab
 
@@ -164,6 +165,8 @@ def main():
 
         Canva and Pinterest use the same images folder.
         """)
+        st.markdown("---")
+        render_notification_center_compact()
 
     # Initialize session state
     if "workflow_state" not in st.session_state:
@@ -171,6 +174,9 @@ def main():
     
     if "is_running" not in st.session_state:
         st.session_state.is_running = False
+
+    if "notifications" not in st.session_state:
+        st.session_state.notifications = []
     
     # Multi-tab interface
     tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(
@@ -213,6 +219,8 @@ def main():
 
     with tab7:
         render_config_tab()
+
+    render_notification_toast()
 
     st.markdown(
         """

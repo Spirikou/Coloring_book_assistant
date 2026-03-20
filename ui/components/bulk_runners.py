@@ -9,6 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
+from core.notifications import notify_completed
+
 
 def build_design_package_options(packages: list[dict]) -> dict[str, str]:
     """Return a stable, collision-resistant label->path map for multiselects."""
@@ -66,6 +68,14 @@ def run_bulk_canva(
                 progress_callback=bulk_progress_callback,
                 selected_images=None,
             )
+            notify_completed(
+                "task.completed",
+                task_id=f"{folder}:{idx}",
+                task_name="Canva Design",
+                task_index=idx,
+                task_total=len(selected_paths),
+                result_summary=label,
+            )
         except Exception as e:
             import traceback
 
@@ -75,6 +85,12 @@ def run_bulk_canva(
 
     with progress_area.container():
         st.success("Bulk Canva run completed.")
+    notify_completed(
+        "workflow.completed",
+        task_id=f"bulk_canva:{id(selected_paths)}",
+        task_name="Bulk Canva",
+        result_summary=f"{len(selected_paths)} design(s)",
+    )
 
 
 def run_bulk_pinterest(
@@ -141,6 +157,14 @@ def run_bulk_pinterest(
                 board_name=board_name,
                 progress_callback=bulk_progress_callback,
             )
+            notify_completed(
+                "task.completed",
+                task_id=f"{design_path}:{idx}",
+                task_name="Pinterest Publish",
+                task_index=idx,
+                task_total=len(selected_design_paths),
+                result_summary=label,
+            )
         except Exception as e:
             import traceback
 
@@ -150,4 +174,10 @@ def run_bulk_pinterest(
 
     with progress_area.container():
         st.success("Bulk Pinterest run completed.")
+    notify_completed(
+        "workflow.completed",
+        task_id=f"bulk_pinterest:{id(selected_design_paths)}",
+        task_name="Bulk Pinterest",
+        result_summary=f"{len(selected_design_paths)} design(s)",
+    )
 

@@ -1017,6 +1017,16 @@ def render_design_generation_tab():
                         st.session_state.generated_designs = designs
                     else:
                         st.session_state.generated_designs = [r or {} for r in results_by_index]
+                    try:
+                        from core.notifications import notify_completed
+                        notify_completed(
+                            "workflow.completed",
+                            task_id=f"bulk_design:{n}",
+                            task_name="Bulk Design Generation",
+                            result_summary=f"{len([r for r in results_by_index if r])} design(s)",
+                        )
+                    except Exception:
+                        pass
                 except Exception as e:
                     st.error(f"Loading results failed: {e}")
                 finally:
@@ -1191,6 +1201,15 @@ def render_design_generation_tab():
                         path = create_design_package(final_state)
                         final_state["design_package_path"] = path
                         final_state["images_folder_path"] = path
+                    except Exception:
+                        pass
+                    try:
+                        from core.notifications import notify_completed
+                        notify_completed(
+                            "task.completed",
+                            task_id=final_state.get("design_package_path", "design") or "design",
+                            task_name="Design Generation",
+                        )
                     except Exception:
                         pass
                 st.rerun()

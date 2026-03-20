@@ -322,6 +322,14 @@ def render_pinterest_tab(workflow_state: dict | None) -> None:
                         state["pinterest_results"] = results
                         state["pinterest_status"] = "completed" if results.get("success", False) else "failed"
                         _persist_pinterest_state(state, from_workflow)
+                        if state["pinterest_status"] == "completed":
+                            from core.notifications import notify_completed
+                            notify_completed(
+                                "task.completed",
+                                task_id=state.get("design_package_path", "pinterest") or "pinterest",
+                                task_name="Pinterest Publish",
+                                result_summary=f"{results.get('pins_published', 0)} pins published",
+                            )
                     st.rerun()
                 except Exception as e:
                     import traceback
@@ -375,6 +383,14 @@ def render_pinterest_tab(workflow_state: dict | None) -> None:
                             state["pinterest_results"] = results
                             state["pinterest_status"] = "completed" if results.get("success", False) else "failed"
                             _persist_pinterest_state(state, from_workflow)
+                            if state["pinterest_status"] == "completed":
+                                from core.notifications import notify_completed
+                                notify_completed(
+                                    "task.completed",
+                                    task_id=state.get("pinterest_rerun_folder", "pinterest-rerun") or "pinterest-rerun",
+                                    task_name="Pinterest Publish",
+                                    result_summary=f"{results.get('pins_published', 0)} pins published",
+                                )
                         st.rerun()
                     except Exception as e:
                         import traceback
