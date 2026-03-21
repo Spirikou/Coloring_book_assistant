@@ -24,9 +24,9 @@ Status enum: `implemented | partial | missing | blocked`
 
 | Streamlit capability | Next.js target page/component | Backend endpoint dependency | Status | Notes |
 |---|---|---|---|---|
-| Image generation tab with full MJ pipeline | `frontend/src/components/tabs/ImageGenerationTab.tsx` via `frontend/src/app/page.tsx` | `/api/jobs/mj_publish/start`, `/api/jobs/mj_uxd/start`, `/api/jobs/mj_download/start`, `/api/jobs/mj_automated/start`, `/api/jobs/mj_batch_automated/start`, `/api/jobs/{job_id}/stop` | partial | Phase 1 routing shell exists; pipeline controls and job wiring are still pending. |
-| Image analysis scoring job | `frontend/src/components/tabs/ImageGenerationTab.tsx` via `frontend/src/app/page.tsx` | `/api/jobs/image_analyze` | partial | Wrapper exists; dedicated image-analysis UX is still pending. |
-| Browse/select/delete images | `frontend/src/components/tabs/ImageGenerationTab.tsx` via `frontend/src/app/page.tsx` | `/api/images`, `/api/images/full`, `/api/images/thumbnail`, `/api/images` (DELETE) | partial | Phase 1 surface exists; curation grid/lightbox/delete UX is not yet implemented. |
+| Image generation tab with full MJ pipeline | `frontend/src/components/tabs/ImageGenerationTab.tsx` via `frontend/src/app/page.tsx` | `/api/jobs/mj_publish/start`, `/api/jobs/mj_uxd/start`, `/api/jobs/mj_download/start`, `/api/jobs/mj_automated/start`, `/api/jobs/mj_batch_automated/start`, `/api/jobs/{job_id}/stop` | implemented | Stage actions, automated + batch automated (multi-package prompt sourcing), SSE progress, and stop control are wired. Browser readiness currently reuses `role=pinterest` until a dedicated MJ role exists. |
+| Image analysis scoring job | `frontend/src/components/tabs/ImageGenerationTab.tsx` via `frontend/src/app/page.tsx` | `/api/jobs/image_analyze` | implemented | Analyze action is wired into the tab and runs via job/SSE model. |
+| Browse/select/delete images | `frontend/src/components/tabs/ImageGenerationTab.tsx` via `frontend/src/app/page.tsx` | `/api/images`, `/api/images/full`, `/api/images/thumbnail`, `/api/images` (DELETE) | partial | List + select + thumbnail/full preview are implemented. Delete/curation UX remains pending. |
 
 ## Canva
 
